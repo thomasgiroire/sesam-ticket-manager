@@ -1,6 +1,6 @@
 # Portail IRIS – Gestionnaire de tickets SESAM-Vitale
 
-CLI Python pour gérer les tickets du **Portail IRIS** (support GIE SESAM-Vitale) et les synchroniser vers **Jira** et **Slack**.
+CLI Python pour gérer les tickets du **Portail IRIS** (support GIE SESAM-Vitale).
 
 ---
 
@@ -9,8 +9,6 @@ CLI Python pour gérer les tickets du **Portail IRIS** (support GIE SESAM-Vitale
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Utilisation](#utilisation)
-- [Intégration Jira](#intégration-jira)
-- [Intégration Slack](#intégration-slack)
 - [Architecture](#architecture)
 - [API Reference](#api-reference)
 - [Dépannage](#dépannage)
@@ -53,19 +51,6 @@ cp .env.example .env
 # ── Portail IRIS ──────────────────────────────────
 SESAM_USERNAME=votre.email@domaine.com
 SESAM_PASSWORD=votre_mot_de_passe
-
-# ── Jira (optionnel) ──────────────────────────────
-JIRA_URL=https://votre-org.atlassian.net
-JIRA_EMAIL=votre.email@domaine.com
-JIRA_API_TOKEN=votre_api_token          # https://id.atlassian.com/manage/api-tokens
-JIRA_PROJECT_KEY=SUP                    # Clé du projet Jira cible
-JIRA_ISSUE_TYPE=Task                    # Type d'issue (Task, Bug, Story…)
-
-# ── Slack (optionnel) ─────────────────────────────
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
-# OU (token bot)
-SLACK_BOT_TOKEN=xoxb-votre-token
-SLACK_CHANNEL=#support-sesam
 ```
 
 Vérifier la connexion :
@@ -154,86 +139,7 @@ python main.py reply 26-001-000001
 python main.py reply 26-001-000001 \
   --title "Complément d'information" \
   --message "Voici les logs demandés : …"
-
-# Avec notification Slack
-python main.py reply 26-001-000001 \
-  --title "Mise à jour" \
-  --message "Ticket résolu côté éditeur." \
-  --notify-slack
 ```
-
----
-
-### Synchroniser vers Jira + Slack
-
-```bash
-# Sync des nouveautés uniquement (recommandé en usage quotidien)
-python main.py sync
-
-# Sync de tous les tickets (premier lancement)
-python main.py sync --all
-
-# Simuler sans rien créer
-python main.py sync --dry-run
-
-# Inclure les tickets clos
-python main.py sync --closed
-
-# Jira uniquement
-python main.py sync --no-slack
-
-# Slack uniquement
-python main.py sync --no-jira
-```
-
-La commande `sync` :
-1. Récupère les tickets depuis le portail
-2. Détecte les nouveaux et les modifiés depuis la dernière synchro (via `.sesam_state.json`)
-3. Crée ou met à jour les issues Jira correspondantes
-4. Envoie les notifications Slack
-5. Mémorise l'état pour la prochaine synchro
-
----
-
-## Intégration Jira
-
-### Prérequis
-
-1. Générer un **API Token** : https://id.atlassian.com/manage/api-tokens
-2. Renseigner dans `.env` : `JIRA_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `JIRA_PROJECT_KEY`
-
-### Comportement
-
-- Chaque ticket SESAM crée une issue Jira avec le label `sesam-vitale`
-- Le titre Jira est `[SESAM-26-001-000001] Titre du ticket`
-- Si l'issue existe déjà (même référence), elle est **mise à jour** (pas de doublon)
-- La description Jira contient : métadonnées, lien vers le portail, description, derniers messages
-- Mapping des priorités : `Normal → Medium`, `Haute → High`, `Critique → Highest`
-
----
-
-## Intégration Slack
-
-### Option A : Webhook (recommandé)
-
-1. https://api.slack.com/apps → Create App → Incoming Webhooks → Activate
-2. "Add New Webhook to Workspace" → choisir le channel
-3. Copier l'URL dans `SLACK_WEBHOOK_URL`
-
-### Option B : Bot Token
-
-1. Créer une app Slack avec le scope `chat:write`
-2. Installer dans le workspace
-3. Renseigner `SLACK_BOT_TOKEN` et `SLACK_CHANNEL`
-
-### Notifications envoyées
-
-| Événement | Contenu |
-|-----------|---------|
-| Nouveau ticket | Titre, référence, statut, priorité, service, demandeur, lien portail + Jira |
-| Ticket mis à jour | Référence, nouveau statut, date de mise à jour |
-| Résumé synchro | Nombre de tickets créés / mis à jour / en erreur |
-| Nouveau message | Extrait du message, lien vers le ticket |
 
 ---
 
@@ -241,10 +147,8 @@ La commande `sync` :
 
 ```
 sesam-ticket-manager/
-├── main.py           # CLI Click (list, show, messages, reply, sync, status)
+├── main.py           # CLI Click (list, show, messages, reply, status)
 ├── portal.py         # Client HTTP Portail IRIS (auth + parsing + cache)
-├── jira_client.py    # Intégration Jira (création/MAJ issues)
-├── slack_client.py   # Intégration Slack (webhooks + Block Kit)
 ├── requirements.txt  # Dépendances Python
 ├── .env.example      # Template de configuration
 ├── .env              # ⚠ Ne pas committer
@@ -263,11 +167,6 @@ Portail IRIS (JHipster Angular 11)
         │  POST /api/requests/{id}/messages
         ▼
    portal.py  ──── .sesam_state.json (cookies + état synchro)
-        │
-   ┌────┴────┐
-   ▼         ▼
-jira_client  slack_client
-(REST API)   (Webhooks / SDK)
 ```
 
 ### Authentification
@@ -338,8 +237,6 @@ Les cookies sont sauvegardés dans `.sesam_state.json` et réutilisés entre les
 | Messages en HTML brut | Mettre à jour `portal.py` (parser HTML intégré) |
 | Session expirée | Supprimer `.sesam_state.json` pour forcer une reconnexion |
 | `ModuleNotFoundError` | Activer le venv : `source .venv/bin/activate` |
-| Jira : `401` | Vérifier que `JIRA_API_TOKEN` est un token API (pas le mot de passe) |
-| Slack : message non reçu | Vérifier que le webhook est actif et l'URL complète dans `.env` |
 
 ---
 
