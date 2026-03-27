@@ -16,7 +16,7 @@ curl -L -o sesam-ticket-manager.zip \
   https://github.com/thomasgiroire/sesam-ticket-manager/releases/latest/download/sesam-ticket-manager.zip
 
 # Extraire et accéder au dossier
-unzip sesam-ticket-manager.zip
+unzip -d sesam-ticket-manager sesam-ticket-manager.zip
 cd sesam-ticket-manager
 
 # Rendre les scripts exécutables

@@ -14,7 +14,8 @@ else
 fi
 
 # ─── Mise à jour automatique ──────────────────────────────────────────────────
-_RELEASE_BASE="https://github.com/thomasgiroire/sesam-ticket-manager/releases/latest/download"
+_RELEASE_SHA1="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest/sesam-ticket-manager.sha1"
+_RELEASE_ZIP="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest/sesam-ticket-manager.zip"    
 _VERSION_FILE="$RUN_DIR/.version"
 _do_update=true
 for _arg in "$@"; do [[ "$_arg" == "--no-update" ]] && _do_update=false; done
@@ -23,7 +24,7 @@ if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
 
   echo -e "${CYAN}Vérification des mises à jour...${RESET}"
 
-  _REMOTE_SHA=$(curl -sf --max-time 5 "$_RELEASE_BASE/sesam-ticket-manager.sha1" | tr -d '[:space:]')
+  _REMOTE_SHA=$(curl -sL --max-time 10 "$_RELEASE_SHA1")
 
   if [[ -z "$_REMOTE_SHA" ]]; then
     echo -e "${YELLOW}⚠ Impossible de vérifier les mises à jour (pas de réseau ?).${RESET}"
@@ -36,8 +37,7 @@ if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
     else
       echo -e "${GREEN}→ Nouvelle version détectée. Mise à jour en cours...${RESET}"
       _TMP_DIR=$(mktemp -d)
-
-      if curl -sL --max-time 60 "$_RELEASE_BASE/sesam-ticket-manager.zip" \
+      if curl -sL --max-time 60 "$_RELEASE_ZIP" \
               -o "$_TMP_DIR/update.zip" \
           && unzip -q "$_TMP_DIR/update.zip" -d "$_TMP_DIR/extracted"; then
 
