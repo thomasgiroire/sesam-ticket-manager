@@ -1,4 +1,4 @@
-# Documentation API - Portail IRIS SESAM-Vitale
+# API Reverse-Engineering Guide - Portail IRIS SESAM-Vitale
 
 ## 🎯 Objectif
 
@@ -7,7 +7,9 @@ Documentation complète du **reverse-engineering** de l'API du Portail IRIS SESA
 - Découverte d'**Efficy 11 CRM** (backend)
 - **14 endpoints REST** documentés avec exemples
 
-**Utilisation**: Référence interne + Bug report potentiel pour le GIE
+**Utilisation**: Guide développeur pour implémenter des intégrations + Bug report potentiel pour le GIE
+
+**➡️ Voir aussi**: [README principal](../README.md) et [CLI User Guide](../CLI_USER_GUIDE.md)
 
 ---
 
@@ -19,7 +21,7 @@ Documentation complète du **reverse-engineering** de l'API du Portail IRIS SESA
 - Concepts clés (IDs, dates, priorités, types)
 - Checklist d'implémentation
 
-**➡️ Lire en premier!**
+**➡️ Lire après ce guide!**
 
 ### 2. **openapi.yaml** - Spécification formelle
 - OpenAPI 3.0 complète
@@ -342,13 +344,17 @@ client = PortalClient(
 
 ---
 
-## 📞 Support
+## 📞 Support & Documentation
 
 Pour toute question, vérifier:
-1. **API.md** - Vue d'ensemble
-2. **REVERSE_ENGINEERING.md** - Détails
-3. **EXAMPLES.md** - Exemples
-4. **ARCHITECTURE.md** - Stack tech
+1. **[API.md](API.md)** - Vue d'ensemble
+2. **[REVERSE_ENGINEERING.md](REVERSE_ENGINEERING.md)** - Détails complets
+3. **[EXAMPLES.md](EXAMPLES.md)** - Exemples cURL/Python
+4. **[ARCHITECTURE.md](ARCHITECTURE.md)** - Stack technique
+
+Ou consulter:
+- **[README principal](../README.md)** - Vue d'ensemble du projet
+- **[CLI User Guide](../CLI_USER_GUIDE.md)** - Guide utilisation CLI
 
 ---
 

@@ -119,8 +119,8 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
   echo -e "  ${YELLOW}Note :${RESET} la référence ticket est au format XX-YYY-NNNNNN (ex: 26-083-026025)"
   echo ""
   echo -e "${BOLD}DOCUMENTATION${RESET}"
-  echo -e "  ${CYAN}docs/USER_GUIDE_WEBAPP.md${RESET}   Guide d'utilisation de l'interface web"
-  echo -e "  ${CYAN}docs/README.md${RESET}              Guide CLI (commandes, options, exemples)"
+  echo -e "  ${CYAN}docs/USER_GUIDE_WEBAPP.md${RESET}     Guide d'utilisation de l'interface web"
+  echo -e "  ${CYAN}docs/CLI_USER_GUIDE.md${RESET}        Guide CLI (commandes, options, exemples)"
   echo ""
   exit 0
 fi

@@ -1,255 +1,244 @@
-# Portail IRIS – Gestionnaire de tickets SESAM-Vitale
+# SESAM Ticket Manager
 
-CLI Python pour gérer les tickets du **Portail IRIS** (support GIE SESAM-Vitale).
+🎫 **Gestionnaire de tickets** pour le **Portail IRIS** (support GIE SESAM-Vitale)
 
----
-
-## Sommaire
-
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Utilisation](#utilisation)
-- [Architecture](#architecture)
-- [API Reference](#api-reference)
-- [Dépannage](#dépannage)
+**CLI Python + API Web** pour gérer vos tickets de support de manière efficace.
 
 ---
 
-## Installation
+## 🚀 Quick Start
 
-**Prérequis :** Python 3.11+
+### Installation
 
 ```bash
-cd sesam-ticket-manager/
+# Télécharger la dernière version
+curl -L -o sesam-ticket-manager.zip \
+  https://github.com/thomasgiroire/sesam-ticket-manager/releases/latest/download/sesam-ticket-manager.zip
 
-# Créer un environnement virtuel
-python3 -m venv .venv
-source .venv/bin/activate       # macOS / Linux
-# .venv\Scripts\activate        # Windows
+# Extraire et accéder au dossier
+unzip sesam-ticket-manager.zip
+cd sesam-ticket-manager
 
-# Installer les dépendances
-pip install -r requirements.txt
+# Rendre les scripts exécutables
+chmod +x install.sh start.sh
+
+# Lancer l'installation guidée
+./install.sh
 ```
 
-Avec **uv** (plus rapide) :
+L'installation va :
+- Vérifier/installer Homebrew et Python 3.11+
+- Créer un environnement Python dans `run/.venv`
+- Installer les dépendances
+- Vous demander vos identifiants SESAM
+- Configurer le port web
+
+### Démarrer l'application
+
 ```bash
-uv venv && source .venv/bin/activate
-uv pip install -r requirements.txt
+./start.sh
 ```
+
+L'app s'ouvre automatiquement dans votre navigateur sur `http://localhost:8473`
 
 ---
 
-## Configuration
+## 📖 Documentation
 
-```bash
-cp .env.example .env
-```
+### 👤 Pour les utilisateurs
 
-Éditez `.env` :
+- **[CLI User Guide](docs/CLI_USER_GUIDE.md)** — Guide complet d'utilisation de la CLI
+  - Lister, afficher, répondre à des tickets
+  - Filtrer par statut, type, pagination
+  - Export JSON
 
-```env
-# ── Portail IRIS ──────────────────────────────────
-SESAM_USERNAME=votre.email@domaine.com
-SESAM_PASSWORD=votre_mot_de_passe
-```
+- **[Web App Guide](docs/USER_GUIDE_WEBAPP.md)** — Interface web FastAPI
+  - Architecture de la webapp
+  - Endpoints disponibles
+  - Configuration avancée
 
-Vérifier la connexion :
-```bash
-python main.py status
-```
+### 🔧 Pour les développeurs
 
----
+- **[API Reverse Engineering Guide](docs/API_REVERSE_ENGINEERING_GUIDE.md)** — Exploration poussée du Portail IRIS
+  - 14+ endpoints découverts et documentés
+  - Architecture Efficy 11 CRM + JHipster
+  - Exemples complets avec requêtes HTTP
+  - Quirks et limitations identifiées
 
-## Utilisation
+- **[API Reference](docs/API.md)** — Démarrage rapide API
+  - Vue d'ensemble endpoints
+  - Premiers pas d'implémentation
+  - Checklist pour ajouter un nouvel endpoint
 
-### Vérifier la connexion
+- **[Examples](docs/EXAMPLES.md)** — Exemples cURL et Python
+  - Requêtes pratiques
+  - Patterns de filtrage
+  - Solutions aux problèmes courants
 
-```bash
-python main.py status
-```
-Affiche l'email connecté, le statut du compte et un résumé des tickets ouverts par statut.
-
----
-
-### Lister les tickets
-
-```bash
-# Tous les tickets ouverts (défaut : 50)
-python main.py list
-
-# Avec les tickets clos
-python main.py list --closed
-
-# Filtrer par statut
-python main.py list --status "En attente"
-python main.py list --status "Expertise externe"
-
-# Filtrer par type
-python main.py list --type Incident
-python main.py list --type Demande
-
-# Pagination
-python main.py list --limit 100 --page 2
-
-# Export JSON brut (pour scripting)
-python main.py list --json-output > tickets.json
-```
-
-**Statuts disponibles :**
-`Nouveau` · `En cours` · `En attente` · `Suspendu` · `En expertise` · `Expertise externe` · `Résolu`
+- **[Architecture](docs/ARCHITECTURE.md)** — Stack technique détaillée
+  - Efficy 11 CRM (backend découvert)
+  - Authentification JHipster
+  - Modèle de données
+  - Observations sécurité
 
 ---
 
-### Détail d'un ticket
+## 📊 Fonctionnalités
+
+### Web App
+- Interface web intuitive
+- Listage et recherche de tickets
+- Détails ticket + messages
+- Réponses directes
+- Authentification automatique
+
+**→ Accédée via `./start.sh`**
+
+### CLI (optionnel)
+Pour utiliser la CLI avancée :
 
 ```bash
-# Par référence (format XX-YYY-NNNNNN)
-python main.py show 26-001-000001
+# Activer l'environnement Python
+source run/.venv/bin/activate
 
-# Par ID hexadécimal interne
-python main.py show 00000000000000ab
-
-# Export JSON
-python main.py show 26-001-000001 --json-output
-```
-
-Affiche : titre, statut, priorité, service, demandeur, dates, description et les 3 derniers messages.
-
----
-
-### Voir les messages d'un ticket
-
-```bash
-python main.py messages 26-001-000001
-python main.py messages 26-001-000001 --limit 50
-python main.py messages 26-001-000001 --json-output
-```
-
-Les messages sont nettoyés (HTML → texte lisible). Types affichés : `Extranet entrant` (message du demandeur) / `Extranet sortant` (réponse du support).
-
----
-
-### Répondre à un ticket
-
-```bash
-# Mode interactif
-python main.py reply 26-001-000001
-
-# En une ligne
-python main.py reply 26-001-000001 \
-  --title "Complément d'information" \
-  --message "Voici les logs demandés : …"
+# Commandes disponibles
+python main.py list                    # Lister les tickets
+python main.py show <ref>              # Détail d'un ticket
+python main.py messages <ref>          # Voir les messages
+python main.py reply <ref>             # Répondre à un ticket
+python main.py status                  # Vérifier la connexion
 ```
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ```
 sesam-ticket-manager/
-├── main.py           # CLI Click (list, show, messages, reply, status)
-├── portal.py         # Client HTTP Portail IRIS (auth + parsing + cache)
-├── requirements.txt  # Dépendances Python
-├── .env.example      # Template de configuration
-├── .env              # ⚠ Ne pas committer
-└── .sesam_state.json # État local (session, tickets connus) — auto-généré
+├── install.sh               # Script d'installation guidée
+├── start.sh                 # Script de démarrage
+├── main.py                  # CLI Click
+├── portal.py                # HTTP Client (authentification + API Portail)
+├── web_app.py               # Application web FastAPI
+├── config.py                # Configuration centralisée
+├── utils.py                 # Utilitaires
+├── exceptions.py            # Exceptions personnalisées
+├── requirements.txt         # Dépendances Python
+├── .env.example             # Template configuration
+├── run/                     # Dossier d'exécution (créé par install.sh)
+│   ├── .venv/              # Environnement Python
+│   ├── .env                # Configuration (généré)
+│   └── .sesam_state.json   # État local (cookies, session)
+├── docs/
+│   ├── CLI_USER_GUIDE.md
+│   ├── API_REVERSE_ENGINEERING_GUIDE.md
+│   ├── API.md
+│   ├── ARCHITECTURE.md
+│   ├── EXAMPLES.md
+│   ├── USER_GUIDE_WEBAPP.md
+│   └── REVERSE_ENGINEERING.md
+└── tests/                   # Tests pytest
 ```
-
-### Flux de données
-
-```
-Portail IRIS (JHipster Angular 11)
-        │
-        │  POST /api/authenticate  (cookie session)
-        │  GET  /api/requests/company
-        │  GET  /api/requests/{id}
-        │  GET  /api/requests/{id}/messages?nbOfResult=N
-        │  POST /api/requests/{id}/messages
-        ▼
-   portal.py  ──── .sesam_state.json (cookies + état synchro)
-```
-
-### Authentification
-
-Le portail utilise **JHipster** avec authentification par **cookie de session** (pas de Bearer token).
-Flux : `POST /api/authenticate` → cookies HttpOnly → réutilisés pour tous les appels suivants.
-Les cookies sont sauvegardés dans `.sesam_state.json` et réutilisés entre les sessions.
 
 ---
 
-## API Reference
+## 🔐 Authentification
 
-### Endpoints confirmés
+Le Portail IRIS utilise **JHipster avec cookies de session** (pas de Bearer tokens).
 
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `POST` | `/api/authenticate` | Login `{username, password, rememberMe}` |
-| `GET` | `/api/account` | Infos utilisateur connecté |
-| `GET` | `/api/requests/company` | Liste des tickets société |
-| `GET` | `/api/requests/{id}` | Détail ticket (ID hex) |
-| `GET` | `/api/requests/{id}/messages` | Messages d'un ticket (`nbOfResult` sans 's') |
-| `POST` | `/api/requests/{id}/messages` | Ajouter un message `{title, description}` |
-| `GET` | `/api/requests/{id}/messages/attachments` | Pièces jointes |
-| `GET` | `/api/requests/services` | Services disponibles |
-| `GET` | `/api/requests/qualifications` | Qualifications |
-| `GET` | `/api/refvalues?tableCode=Rst` | Statuts |
-| `GET` | `/api/refvalues?tableCode=Tt_` | Types de tickets |
+Les identifiants SESAM sont configurés lors de `./install.sh` et stockés dans `run/.env`.
 
-### Structure d'un ticket
-
-```json
-{
-  "id": "00000000000000ab",
-  "code": "26-001-000001",
-  "titre": "Titre du ticket",
-  "status": { "code": "EXPEXT", "label": "Expertise externe" },
-  "priority": { "code": "AVERAGE", "label": "Normal" },
-  "typeTicket": { "code": "INCIDENT", "label": "Incident" },
-  "service": { "id": "00023000004ecba5", "qualifs": [...] },
-  "person": { "firstName": "Jean", "lastName": "DUPONT" },
-  "createdAt": "2026-03-24T14:58:51",
-  "updatedAt": "2026-03-24T17:09:46",
-  "description": "..."
-}
-```
-
-> **Note :** Le champ du titre est `titre` (français), pas `title`.
-> Le label du service n'est pas dans l'objet ticket — il est résolu via `/api/requests/services`.
-
-### Paramètres de liste
-
-| Paramètre | Description | Exemple |
-|-----------|-------------|---------|
-| `notClosed` | Masquer les clos | `true` |
-| `fromPageNumber` | Page (commence à 1) | `1` |
-| `nbOfResults` | Résultats par page | `50` |
-| `orderBy` | Champ de tri | `DmdCrDt` (création), `DmdUpDt` (MAJ) |
-| `orderWay` | Sens du tri | ` DESC` ou ` ASC` |
+Les sessions sont automatiquement gérées et persistées dans `run/.sesam_state.json`.
 
 ---
 
-## Dépannage
+## 🛠️ Dépendances
 
-| Symptôme | Solution |
-|----------|----------|
-| `401 Identifiants incorrects` | Vérifier `SESAM_USERNAME` (email complet) et `SESAM_PASSWORD` dans `.env` |
-| `Service : —` dans `show` | Mettre à jour `portal.py` (résolution via cache `/api/requests/services`) |
-| Messages en HTML brut | Mettre à jour `portal.py` (parser HTML intégré) |
-| Session expirée | Supprimer `.sesam_state.json` pour forcer une reconnexion |
-| `ModuleNotFoundError` | Activer le venv : `source .venv/bin/activate` |
+- **Python 3.11+**
+- **FastAPI** — Web framework
+- **Click** — CLI framework
+- **requests** — HTTP client
+- **pytest** — Tests
+
+Voir `requirements.txt` pour la liste complète.
 
 ---
 
-## Développement
+## 📋 État d'implémentation
+
+| Fonctionnalité | Statut |
+|--|--|
+| Authentification | ✅ Implémentée |
+| Lister tickets | ✅ Implémentée |
+| Afficher ticket | ✅ Implémentée |
+| Voir messages | ✅ Implémentée |
+| Répondre | ✅ Implémentée |
+| Web API | ✅ Implémentée |
+| Créer tickets | ✅ Implémentée |
+| Upload fichiers | ✅ Implémentée |
+| Modifier tickets | 🚀 À faire |
+
+---
+
+## ⚠️ Limitations & Quirks
+
+- **Sans rate limiting** — Respecter max 30 requêtes/page
+- **HTML non échappé** — Sanitizer avant affichage
+- **Pas de bulk operations** — Requêtes individuelles
+- **Pagination simple** — Pas de cursors, numérotation par page
+
+Pour plus de détails → [API Reverse Engineering Guide](docs/API_REVERSE_ENGINEERING_GUIDE.md#quirks--limitations)
+
+---
+
+## 🧪 Tests
 
 ```bash
-# Export JSON pour inspecter les données brutes
-python main.py list --json-output | python3 -m json.tool | head -100
-python main.py show 26-001-000001 --json-output
-
-# Tester la synchro sans rien créer
-python main.py sync --dry-run
-
-# Réinitialiser l'état de synchro
-rm .sesam_state.json
+pytest                      # Lancer tous les tests
+pytest -v                   # Verbose
+pytest --cov               # Coverage report
 ```
+
+---
+
+## 🐛 Dépannage
+
+| Symptôme | Solution |
+|--|--|
+| `401 Identifiants incorrects` | Vérifier email + password demandés par `./install.sh` |
+| Service : — manquant | Mettre à jour le cache des services (CLI) |
+| Session expirée | Supprimer `run/.sesam_state.json` |
+| Port 8473 déjà utilisé | `./install.sh` trouvera un port libre automatiquement |
+| `ModuleNotFoundError` | Activer l'env via `source run/.venv/bin/activate` |
+| L'app n'ouvre pas le navigateur | Accédez manuellement à `http://localhost:8473` |
+
+Pour plus d'aide CLI → [CLI User Guide - Dépannage](docs/CLI_USER_GUIDE.md#dépannage)
+
+---
+
+## 📚 Ressources
+
+- [OpenAPI Specification](docs/openapi.yaml) — Spec 3.0 formelle (14+ endpoints)
+- [Efficy 11 Patterns](docs/EFFICY_11_PATTERNS.md) — Patterns identifiés du backend
+- [Reverse Engineering Details](docs/REVERSE_ENGINEERING.md) — Analyse complète HAR file
+
+---
+
+## 📝 Licence
+
+[À définir]
+
+---
+
+## 💬 Questions?
+
+1. **Utilisation CLI** → Voir [CLI User Guide](docs/CLI_USER_GUIDE.md)
+2. **Développement d'API** → Voir [API Reverse Engineering Guide](docs/API_REVERSE_ENGINEERING_GUIDE.md)
+3. **Exemples** → Voir [Examples](docs/EXAMPLES.md)
+4. **Architecture** → Voir [Architecture](docs/ARCHITECTURE.md)
+
+---
+
+**Généré pour le Portail IRIS du GIE SESAM-Vitale**
+
+Stack découvert: **Efficy 11 CRM** + **JHipster** + **Angular 11**
