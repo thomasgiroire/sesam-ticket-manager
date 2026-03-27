@@ -502,24 +502,6 @@ class TestRefresh:
         assert len(web_app._mem_cache) == 0
 
 
-# ─── TestHeartbeat ────────────────────────────────────────────────────────────
-
-
-class TestHeartbeat:
-    def test_returns_ok_json(self, client):
-        http, _ = client
-        r = http.post("/heartbeat")
-        assert r.status_code == 200
-        assert r.json() == {"ok": True}
-
-    def test_updates_timestamp(self, client, monkeypatch):
-        http, _ = client
-        old_ts = time.time() - 100
-        monkeypatch.setattr(web_app, "_last_heartbeat", old_ts)
-        http.post("/heartbeat")
-        assert web_app._last_heartbeat > old_ts
-
-
 # ─── TestApiTickets ───────────────────────────────────────────────────────────
 
 
