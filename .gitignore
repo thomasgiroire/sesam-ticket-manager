@@ -1,0 +1,36 @@
+# Répertoire d'exécution (venv, .env, état runtime)
+run/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+
+# Environnement & secrets
+.env
+.env.local
+
+# État runtime
+.sesam_state.json
+.sesam_state.json.lock
+..sesam_state.json.lock
+.sesam_web_cache.json
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude Code (local machine config)
+.claude/launch.json
+.claude/settings.local.json

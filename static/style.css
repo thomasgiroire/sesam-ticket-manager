@@ -1,0 +1,70 @@
+[x-cloak] { display: none !important; }
+
+/* Chat bubbles */
+.chat-bubble {
+  padding: 0.625rem 0.875rem;
+  border-radius: 1rem;
+  word-break: break-word;
+}
+
+.chat-bubble-mine {
+  background-color: #4f46e5; /* indigo-600 */
+  color: #ffffff;
+  border-bottom-right-radius: 0.25rem;
+}
+
+.chat-bubble-mine .font-semibold {
+  color: #e0e7ff;
+}
+
+.chat-bubble-theirs {
+  background-color: #f3f4f6; /* gray-100 */
+  color: #1f2937; /* gray-800 */
+  border-bottom-left-radius: 0.25rem;
+}
+
+/* Tailwind CDN doesn't ship the `urlencode` filter hint but we use Jinja2 */
+
+/* HTML body of messages (preserves rich text + images) */
+.message-html-body img {
+  max-width: 100%;
+  border-radius: 0.5rem;
+  margin: 0.5rem 0;
+  display: block;
+}
+
+.message-html-body p {
+  margin: 0.25rem 0;
+}
+
+.message-html-body ul,
+.message-html-body ol {
+  margin: 0.25rem 0 0.25rem 1.25rem;
+}
+
+.message-html-body ul { list-style-type: disc; }
+.message-html-body ol { list-style-type: decimal; }
+
+.message-html-body a {
+  text-decoration: underline;
+  color: #4f46e5;
+}
+
+.chat-bubble-mine .message-html-body a {
+  color: #c7d2fe;
+}
+
+.message-html-body table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 0.75rem;
+}
+
+.message-html-body td,
+.message-html-body th {
+  border: 1px solid #d1d5db;
+  padding: 0.25rem 0.5rem;
+}
+
+.message-html-body strong { font-weight: 600; }
+.message-html-body em { font-style: italic; }

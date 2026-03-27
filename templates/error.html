@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Erreur — Sesam ouvre toi !{% endblock %}
+{% block content %}
+<div class="flex flex-col items-center justify-center min-h-64 text-center">
+  <div class="text-5xl mb-4">&#x26a0;&#xfe0f;</div>
+  <h1 class="text-xl font-semibold text-gray-800 mb-2">Une erreur est survenue</h1>
+  <p class="text-gray-500 max-w-md mb-6">{{ error }}</p>
+  <a href="/" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm">
+    Retour au dashboard
+  </a>
+</div>
+{% endblock %}

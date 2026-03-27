@@ -1,0 +1,408 @@
+{% extends "base.html" %}
+{% block title %}[{{ ticket.code }}] {{ ticket.titre }} — Sesam ouvre toi !{% endblock %}
+{% block content %}
+
+<div class="flex gap-6 h-[calc(100vh-8rem)]">
+
+  <!-- Left panel: ticket info -->
+  <aside class="w-56 shrink-0 flex flex-col gap-4 overflow-y-auto">
+    <a href="/tickets" class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+      </svg>
+      Retour
+    </a>
+
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col gap-4">
+
+      <div>
+        <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Référence</div>
+        <div class="font-mono text-sm text-gray-700">{{ ticket.code }}</div>
+      </div>
+
+      <div>
+        <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Statut</div>
+        <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ ticket.status | status_color }}">
+          {{ ticket.status }}
+        </span>
+      </div>
+
+      <div>
+        <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Priorité</div>
+        <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ ticket.priority | priority_color }}">
+          {{ ticket.priority or "—" }}
+        </span>
+      </div>
+
+      <div>
+        <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Type</div>
+        <div class="text-sm text-gray-700">{{ ticket.type_ticket or "—" }}</div>
+      </div>
+
+      {% if ticket.service %}
+      <div>
+        <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Service</div>
+        <div class="text-sm text-gray-700">{{ ticket.service }}</div>
+      </div>
+      {% endif %}
+
+      {% if ticket.qualification %}
+      <div>
+        <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Qualification</div>
+        <div class="text-sm text-gray-700">{{ ticket.qualification }}</div>
+      </div>
+      {% endif %}
+
+      <div>
+        <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Demandeur</div>
+        <div class="text-sm text-gray-700">{{ ticket.author or "—" }}</div>
+      </div>
+
+      <div>
+        <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Créé le</div>
+        <div class="text-sm text-gray-700">{{ ticket.created_at | format_date_short }}</div>
+      </div>
+
+      {% if ticket.updated_at %}
+      <div>
+        <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Mis à jour</div>
+        <div class="text-sm text-gray-700">{{ ticket.updated_at | format_date_short }}</div>
+      </div>
+      {% endif %}
+
+      {% if ticket.closed_at %}
+      <div>
+        <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Clos le</div>
+        <div class="text-sm text-gray-700">{{ ticket.closed_at | format_date_short }}</div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Export button -->
+    <button id="export-btn"
+            onclick="copyExport(this)"
+            class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium
+                   text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg
+                   hover:bg-indigo-100 active:bg-indigo-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+      </svg>
+      Copier pour DUST
+    </button>
+
+    <!-- Portal link -->
+    <a href="https://portail-support.sesam-vitale.fr/gsvextranet/#/my-requests/{{ ticket.id }}"
+       target="_blank"
+       rel="noopener noreferrer"
+       class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium
+              text-gray-600 bg-gray-50 border border-gray-200 rounded-lg
+              hover:bg-gray-100 active:bg-gray-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+      </svg>
+      Voir sur le portail GIE
+    </a>
+
+  </aside>
+
+  <!-- Right panel: conversation -->
+  <div class="flex-1 min-w-0 flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+
+    <!-- Header -->
+    <div class="px-5 py-4 border-b border-gray-100 shrink-0">
+      <h1 class="text-base font-semibold text-gray-800 leading-snug">{{ ticket.titre }}</h1>
+      <div class="text-xs text-gray-400 mt-0.5">{{ messages | length }} message{{ 's' if messages | length != 1 else '' }}</div>
+    </div>
+
+    <!-- Messages -->
+    <div class="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4" id="messages"
+         x-data="{ modal: null }" @open-modal.window="modal = $event.detail">
+
+      {% set ns = namespace(last_date="") %}
+      {% for msg in messages %}
+
+        {# Date separator #}
+        {% set msg_date = msg.created_at | format_date_short %}
+        {% if msg_date != ns.last_date %}
+          <div class="flex items-center gap-3 my-1">
+            <div class="flex-1 border-t border-gray-100"></div>
+            <span class="text-xs text-gray-400 shrink-0">{{ msg_date }}</span>
+            <div class="flex-1 border-t border-gray-100"></div>
+          </div>
+          {% set ns.last_date = msg_date %}
+        {% endif %}
+
+        {# Determine bubble side #}
+        {% set is_mine = msg.type_code | is_client_author %}
+
+        {# x-data au niveau du message pour que la preview soit hors de la bulle #}
+        {% set has_previewable = msg.attachments and msg.attachments | selectattr('contentType') | list %}
+        <div class="flex flex-col {{ 'items-end' if is_mine else 'items-start' }} gap-1">
+
+          <!-- Author + time -->
+          <div class="flex items-center gap-2 px-1 {{ 'flex-row-reverse' if is_mine else '' }}">
+            <span class="text-xs font-semibold text-gray-600">
+              {{ ticket.author if is_mine else "SESAM-Vitale" }}
+            </span>
+            <span class="text-xs text-gray-400">{{ msg.created_at | format_date }}</span>
+            {% if msg.type_label %}
+            <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">{{ msg.type_label }}</span>
+            {% endif %}
+          </div>
+
+          <!-- Bubble -->
+          <div class="chat-bubble {{ 'chat-bubble-mine' if is_mine else 'chat-bubble-theirs' }} max-w-xl">
+            {% if msg.title %}
+            <div class="font-semibold text-sm mb-1">{{ msg.title }}</div>
+            {% endif %}
+            {% if msg.body_html %}
+            <div class="text-sm leading-relaxed message-html-body">
+              {{ msg.body_html | safe }}
+            </div>
+            {% else %}
+            <div class="text-sm whitespace-pre-wrap leading-relaxed">{{ msg.body | clean_body }}</div>
+            {% endif %}
+
+            {% if msg.attachments %}
+            <div class="mt-3 pt-2 border-t {{ 'border-white/20' if is_mine else 'border-gray-100' }} flex flex-wrap gap-2">
+              {% for att in msg.attachments %}
+              {% set att_id = att.id | default('') %}
+              {% set att_name = att.name or att.fileName or att.originalFileName or ("Pièce jointe " ~ loop.index) %}
+              {% set att_type = att.contentType or att.content_type or '' %}
+              {% set base_url = "/tickets/" ~ ticket.id ~ "/messages/" ~ msg.id ~ "/attachments/" ~ att_id %}
+              {% if att_id %}
+
+              {% if 'image' in att_type %}
+              {# Vignette image réelle #}
+              <button @click="$dispatch('open-modal', { url: '{{ base_url }}?inline=true', type: 'image', name: '{{ att_name | replace("'", "\\'") }}', downloadUrl: '{{ base_url }}?filename={{ att_name | urlencode }}' })"
+                      class="group relative rounded-lg overflow-hidden w-24 h-24 shrink-0 cursor-pointer
+                             border {{ 'border-white/20' if is_mine else 'border-gray-200' }}
+                             hover:ring-2 hover:ring-indigo-400 transition-all">
+                <img src="{{ base_url }}?inline=true" alt="{{ att_name }}"
+                     class="w-full h-full object-cover" loading="lazy">
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
+                            flex items-center justify-center transition-opacity">
+                  <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                  </svg>
+                </div>
+              </button>
+
+              {% elif 'pdf' in att_type %}
+              {# Carte PDF stylée #}
+              <button @click="$dispatch('open-modal', { url: '{{ base_url }}?inline=true', type: 'pdf', name: '{{ att_name | replace("'", "\\'") }}', downloadUrl: '{{ base_url }}?filename={{ att_name | urlencode }}' })"
+                      class="group flex items-center gap-2.5 px-3 py-2 rounded-lg text-left cursor-pointer
+                             {{ 'bg-white/10 hover:bg-white/20 border border-white/20' if is_mine else 'bg-gray-50 hover:bg-gray-100 border border-gray-200' }}
+                             transition-all w-full max-w-xs">
+                <svg class="w-8 h-8 shrink-0 {{ 'text-red-300' if is_mine else 'text-red-500' }}" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM9.5 17H8v-5h1.5c1.1 0 1.8.7 1.8 2.5S10.6 17 9.5 17zm0-4H9v3h.5c.6 0 1-.4 1-1.5S10.1 13 9.5 13zM13 17h-1.5v-5H13c1.1 0 1.75.8 1.75 2.5S14.1 17 13 17zm0-4h-.5v3H13c.65 0 .95-.5.95-1.5S13.65 13 13 13zM16 12h-1.5v1.5H16v1h-1.5V17H13v-5h3v1z"/>
+                </svg>
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs font-medium truncate {{ 'text-white' if is_mine else 'text-gray-800' }}">{{ att_name }}</div>
+                  <div class="text-[10px] {{ 'text-white/50' if is_mine else 'text-gray-400' }}">PDF · Aperçu</div>
+                </div>
+                <svg class="w-4 h-4 shrink-0 {{ 'text-white/40 group-hover:text-white/70' if is_mine else 'text-gray-300 group-hover:text-gray-500' }} transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </button>
+
+              {% else %}
+              {# Autre type : lien download simple #}
+              <a href="{{ base_url }}?filename={{ att_name | urlencode }}"
+                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs
+                        {{ 'bg-white/10 border border-white/20 text-white/80 hover:text-white' if is_mine else 'bg-gray-50 border border-gray-200 text-gray-600 hover:text-gray-800' }}
+                        transition-colors">
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                </svg>
+                {{ att_name }}
+              </a>
+              {% endif %}
+
+              {% endif %}
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+
+        </div>
+
+      {% else %}
+      <div class="flex-1 flex items-center justify-center text-gray-400 text-sm">
+        Aucun message pour ce ticket.
+      </div>
+      {% endfor %}
+      {% set is_closed_panel = 'clos' in ticket.status.lower() or 'résolu' in ticket.status.lower() or 'fermé' in ticket.status.lower() %}
+      {% set last_msg = messages | last %}
+      {% if not is_closed_panel and last_msg and last_msg.type_code not in ("INEXTRANET",) %}
+      <form method="POST" action="/tickets/{{ ticket.id }}/resolve"
+            onsubmit="return confirm('Confirmer la résolution du ticket ?')">
+        <button type="submit"
+                class="w-full flex items-center justify-center gap-2 px-3 py-2
+                       rounded-lg border border-green-300 bg-green-50 text-green-700
+                       text-xs font-semibold hover:bg-green-100 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+          </svg>
+          Résoudre le ticket
+        </button>
+      </form>
+      {% endif %}
+
+      <!-- Modal aperçu PJ -->
+      <div x-show="modal !== null"
+           x-transition.opacity
+           @click.self="modal = null"
+           @keydown.escape.window="modal = null"
+           class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+           style="display:none">
+        <div class="relative bg-white rounded-2xl shadow-2xl overflow-hidden w-full max-w-4xl flex flex-col"
+             style="max-height:90vh">
+
+          <!-- Header -->
+          <div class="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
+            <span class="text-sm font-semibold text-gray-700 truncate max-w-xs" x-text="modal?.name"></span>
+            <div class="flex items-center gap-3">
+              <a :href="modal?.downloadUrl"
+                 :download="modal?.name"
+                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100
+                        text-xs font-medium text-indigo-600 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Télécharger
+              </a>
+              <button @click="modal = null"
+                      class="w-7 h-7 rounded-full bg-gray-100 hover:bg-red-100 hover:text-red-500
+                             flex items-center justify-center transition-colors text-gray-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Contenu -->
+          <div class="flex-1 min-h-0 overflow-auto bg-gray-50">
+            <template x-if="modal?.type === 'image'">
+              <img :src="modal.url" :alt="modal.name"
+                   class="w-full h-auto object-contain mx-auto block p-4" style="max-height:80vh">
+            </template>
+            <template x-if="modal?.type === 'pdf'">
+              <iframe :src="modal.url" class="w-full bg-white border-0" style="height:80vh"></iframe>
+            </template>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Reply form -->
+    {% set is_closed = 'clos' in ticket.status.lower() or 'résolu' in ticket.status.lower() or 'fermé' in ticket.status.lower() %}
+    {% if not is_closed %}
+    <div class="border-t border-gray-100 p-4 shrink-0 bg-gray-50">
+      <form method="POST" action="/tickets/{{ ticket.id }}/reply" class="flex flex-col gap-3">
+        <input type="hidden" name="title" value="Réponse éditeur">
+        <textarea name="message" placeholder="Votre message…" rows="3"
+                  required
+                  class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none bg-white"></textarea>
+        <div class="flex justify-end">
+          <!-- Split button Envoyer / Envoyer et résoudre -->
+          <div class="relative flex" x-data="{ open: false }">
+
+            <!-- Action principale : Envoyer -->
+            <button type="submit" name="action" value=""
+                    class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white
+                           text-sm font-medium hover:bg-indigo-700 transition-colors rounded-l-lg">
+              Envoyer
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+              </svg>
+            </button>
+
+            <!-- Chevron dropdown -->
+            <button type="button"
+                    @click="open = !open"
+                    @click.outside="open = false"
+                    class="flex items-center px-2 py-2 bg-indigo-700 text-white
+                           hover:bg-indigo-800 transition-colors rounded-r-lg
+                           border-l border-indigo-500">
+              <svg class="w-3.5 h-3.5 transition-transform duration-150"
+                   :class="open ? 'rotate-180' : ''"
+                   fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                      d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+
+            <!-- Menu déroulant -->
+            <div x-show="open"
+                 x-transition
+                 class="absolute bottom-full right-0 mb-1 w-52 bg-white rounded-lg
+                        shadow-lg border border-gray-200 overflow-hidden z-10">
+              <button type="submit" name="action" value="close"
+                      onclick="return confirm('Envoyer ce message et résoudre le ticket ?')"
+                      @click="open = false"
+                      class="w-full flex items-center gap-2 px-4 py-2.5 text-sm
+                             text-gray-700 hover:bg-gray-50 transition-colors">
+                <svg class="w-4 h-4 text-green-600 shrink-0" fill="none"
+                     stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M5 13l4 4L19 7"/>
+                </svg>
+                Envoyer et résoudre
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </form>
+    </div>
+    {% else %}
+    <div class="border-t border-gray-100 px-5 py-3 bg-gray-50 text-sm text-gray-400 text-center shrink-0">
+      Ce ticket est clos — impossible d'ajouter un message.
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<script>
+  // Scroll to bottom of messages on load
+  const msgs = document.getElementById('messages');
+  if (msgs) msgs.scrollTop = msgs.scrollHeight;
+
+  async function copyExport(btn) {
+    const origContent = btn.innerHTML;
+    try {
+      const res = await fetch('/tickets/{{ ticket.id }}/export');
+      if (!res.ok) throw new Error('Erreur ' + res.status);
+      const text = await res.text();
+      await navigator.clipboard.writeText(text);
+      btn.innerHTML = '<svg class="w-4 h-4 shrink-0 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg> Copié !';
+      btn.classList.replace('text-indigo-700', 'text-green-700');
+      btn.classList.replace('bg-indigo-50', 'bg-green-50');
+      btn.classList.replace('border-indigo-200', 'border-green-300');
+    } catch (e) {
+      btn.innerHTML = '❌ Erreur';
+    }
+    setTimeout(() => {
+      btn.innerHTML = origContent;
+      btn.classList.replace('text-green-700', 'text-indigo-700');
+      btn.classList.replace('bg-green-50', 'bg-indigo-50');
+      btn.classList.replace('border-green-300', 'border-indigo-200');
+    }, 2500);
+  }
+</script>
+
+{% endblock %}

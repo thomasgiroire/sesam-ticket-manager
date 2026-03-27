@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% block title %}Nouvelle demande — Sesam ouvre toi !{% endblock %}
+{% block content %}
+
+<script>
+  function newTicketForm() {
+    return {
+      services: {{ services | tojson }},
+      allQualifications: {{ qualifications | tojson }},
+
+      // Service combobox
+      serviceId: {{ (form.service_id if form else '') | tojson }},
+      serviceSearch: '',
+      serviceOpen: false,
+
+      // Qualification combobox
+      qualificationId: {{ (form.qualification_id if form else '') | tojson }},
+      qualSearch: '',
+      qualOpen: false,
+
+      // Champs titre / description (pour le scoring)
+      titre: {{ (form.titre if form else '') | tojson }},
+      description: {{ (form.description if form else '') | tojson }},
+
+      // Scores de tri des dropdowns
+      serviceSortOrder: {},
+      qualSortOrder: {},
+      _debounceTimer: null,
+
+      init() {
+        if (this.serviceId) {
+          const s = this.services.find(s => s.id === this.serviceId);
+          if (s) this.serviceSearch = s.display || s.nomLong || s.nomCourt || '';
+        }
+        if (this.qualificationId) {
+          const q = this.allQualifications.find(q => q.id === this.qualificationId);
+          if (q) this.qualSearch = q.label || q.code || '';
+        }
+      },
+
+      onTextChange() {
+        clearTimeout(this._debounceTimer);
+        if ((this.titre + ' ' + this.description).trim().length < 10) return;
+        this._debounceTimer = setTimeout(() => this.fetchServiceScores(), 600);
+      },
+
+      async fetchServiceScores() {
+        try {
+          const params = new URLSearchParams({ titre: this.titre, description: this.description });
+          const res = await fetch('/api/suggest?' + params);
+          const data = await res.json();
+          this.serviceSortOrder = data.service_scores || {};
+        } catch (_) {}
+      },
+
+      async fetchQualScores() {
+        if (!this.serviceId) { this.qualSortOrder = {}; return; }
+        try {
+          const params = new URLSearchParams({
+            titre: this.titre, description: this.description, service_id: this.serviceId
+          });
+          const res = await fetch('/api/suggest?' + params);
+          const data = await res.json();
+          this.qualSortOrder = data.qual_scores || {};
+        } catch (_) {}
+      },
+
+      get filteredServices() {
+        const q = this.serviceSearch.toLowerCase();
+        let list = q
+          ? this.services.filter(s => (s.display || s.nomLong || s.nomCourt || '').toLowerCase().includes(q))
+          : [...this.services];
+        const order = this.serviceSortOrder;
+        list.sort((a, b) => (order[b.id] || 0) - (order[a.id] || 0));
+        return list;
+      },
+
+      get filteredQualifications() {
+        const base = (() => {
+          if (!this.serviceId) return this.allQualifications;
+          const svc = this.services.find(s => s.id === this.serviceId);
+          if (!svc || !svc.qualifs) return this.allQualifications;
+          return this.allQualifications.filter(q => svc.qualifs.includes(q.id));
+        })();
+        const q = this.qualSearch.toLowerCase();
+        let list = q
+          ? base.filter(q2 => (q2.label || q2.code || '').toLowerCase().includes(q))
+          : [...base];
+        const order = this.qualSortOrder;
+        list.sort((a, b) => (order[b.id] || 0) - (order[a.id] || 0));
+        return list;
+      },
+
+      selectService(s) {
+        this.serviceId = s.id;
+        this.serviceSearch = s.display || s.nomLong || s.nomCourt || '';
+        this.serviceOpen = false;
+        this.qualificationId = '';
+        this.qualSearch = '';
+        this.qualSortOrder = {};
+        this.fetchQualScores();
+      },
+
+      clearService() {
+        this.serviceId = '';
+        this.serviceSearch = '';
+        this.serviceOpen = false;
+        this.qualificationId = '';
+        this.qualSearch = '';
+        this.qualSortOrder = {};
+      },
+
+      selectQual(q) {
+        this.qualificationId = q.id;
+        this.qualSearch = q.label || q.code || '';
+        this.qualOpen = false;
+      },
+
+      clearQual() {
+        this.qualificationId = '';
+        this.qualSearch = '';
+        this.qualOpen = false;
+      }
+    };
+  }
+</script>
+
+<div class="max-w-2xl mx-auto" x-data="newTicketForm()" x-init="init()">
+
+  <a href="/tickets" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 transition-colors mb-4">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+    </svg>
+    Retour aux tickets
+  </a>
+
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h1 class="text-lg font-semibold text-gray-900 mb-6">Nouvelle demande</h1>
+
+    {% if error %}
+    <div class="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/tickets/create" enctype="multipart/form-data" class="flex flex-col gap-5">
+
+      <!-- Titre -->
+      <div>
+        <label for="titre" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+          Titre <span class="text-red-500">*</span>
+        </label>
+        <input type="text" id="titre" name="titre" required
+               x-model="titre" @input="onTextChange()"
+               placeholder="Résumé de la demande"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+      </div>
+
+      <!-- Description -->
+      <div>
+        <label for="description" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+          Description <span class="text-red-500">*</span>
+        </label>
+        <textarea id="description" name="description" required rows="6"
+                  x-model="description" @input="onTextChange()"
+                  placeholder="Décrivez votre demande en détail…"
+                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y">{{ form.description if form else '' }}</textarea>
+      </div>
+
+      <!-- Priorité -->
+      <div>
+        <label for="priority_code" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+          Priorité
+        </label>
+        <select id="priority_code" name="priority_code"
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white">
+          <option value="AVERAGE" {% if not form or form.priority_code == 'AVERAGE' %}selected{% endif %}>Normal</option>
+          <option value="HIGH" {% if form and form.priority_code == 'HIGH' %}selected{% endif %}>Haute</option>
+          <option value="CRITICAL" {% if form and form.priority_code == 'CRITICAL' %}selected{% endif %}>Critique</option>
+        </select>
+      </div>
+
+      <!-- Service (combobox avec recherche) -->
+      {% if services %}
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+          Service
+        </label>
+        <input type="hidden" name="service_id" :value="serviceId">
+        <div class="relative" @click.outside="serviceOpen = false">
+          <div class="relative">
+            <input type="text"
+                   x-model="serviceSearch"
+                   @focus="serviceOpen = true"
+                   @input="serviceOpen = true; serviceId = ''"
+                   placeholder="Rechercher un service…"
+                   autocomplete="off"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            <button x-show="serviceSearch" type="button" @click="clearService()"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">
+              &times;
+            </button>
+          </div>
+          <div x-show="serviceOpen" x-cloak
+               class="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+            <template x-if="filteredServices.length === 0">
+              <div class="px-3 py-2 text-sm text-gray-400 italic">Aucun résultat</div>
+            </template>
+            <template x-for="s in filteredServices" :key="s.id">
+              <div @click="selectService(s)"
+                   class="px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 hover:text-indigo-700"
+                   :class="s.id === serviceId ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-800'"
+                   x-text="s.display || s.nomLong || s.nomCourt"></div>
+            </template>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Qualification (combobox avec recherche, filtrée selon le service) -->
+      {% if qualifications %}
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+          Qualification
+        </label>
+        <input type="hidden" name="qualification_id" :value="qualificationId">
+        <div class="relative" @click.outside="qualOpen = false">
+          <div class="relative">
+            <input type="text"
+                   x-model="qualSearch"
+                   @focus="if (serviceId) { qualOpen = true; if (!Object.keys(qualSortOrder).length) fetchQualScores(); }"
+                   @input="serviceId && (qualOpen = true); serviceId && (qualificationId = '')"
+                   :placeholder="serviceId ? 'Rechercher une qualification…' : 'Choisir un service d\'abord'"
+                   :disabled="!serviceId"
+                   autocomplete="off"
+                   :class="serviceId ? 'bg-white text-gray-900 placeholder-gray-400 cursor-text' : 'bg-gray-50 text-gray-400 cursor-not-allowed'"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+            <button x-show="qualSearch && serviceId" type="button" @click="clearQual()"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">
+              &times;
+            </button>
+          </div>
+          <div x-show="qualOpen" x-cloak
+               class="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+            <template x-if="filteredQualifications.length === 0">
+              <div class="px-3 py-2 text-sm text-gray-400 italic">Aucun résultat</div>
+            </template>
+            <template x-for="q in filteredQualifications" :key="q.id">
+              <div @click="selectQual(q)"
+                   class="px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 hover:text-indigo-700"
+                   :class="q.id === qualificationId ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-800'"
+                   x-text="q.label || q.code"></div>
+            </template>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Pièces jointes -->
+      <div x-data="{ pjs: [{ desc: '' }] }">
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+          Pièces jointes
+        </label>
+        <div class="flex flex-col gap-2">
+          <template x-for="(pj, i) in pjs" :key="i">
+            <div class="flex items-center gap-2">
+              <input type="file" name="files"
+                     class="text-sm text-gray-600 file:mr-2 file:rounded file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-medium file:text-gray-700 hover:file:bg-gray-200">
+              <input type="text" name="descriptions" x-model="pj.desc"
+                     placeholder="Description (optionnel)"
+                     class="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+              <button type="button" @click="pjs.splice(i, 1)" x-show="pjs.length > 1"
+                      class="text-gray-300 hover:text-red-400 text-xl leading-none px-1">&times;</button>
+            </div>
+          </template>
+          <button type="button" @click="pjs.push({ desc: '' })"
+                  class="self-start text-xs text-indigo-600 hover:text-indigo-800 font-medium mt-1">
+            + Ajouter une pièce jointe
+          </button>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-3 pt-2 border-t border-gray-100">
+        <button type="submit"
+                class="flex items-center gap-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg px-4 py-2 transition-colors font-medium">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Créer la demande
+        </button>
+        <a href="/tickets"
+           class="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+          Annuler
+        </a>
+      </div>
+
+    </form>
+  </div>
+
+</div>
+
+{% endblock %}

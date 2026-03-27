@@ -1,0 +1,649 @@
+openapi: 3.0.0
+info:
+  title: Portail IRIS SESAM-Vitale API
+  description: |
+    API du Portail de support SESAM-Vitale (GIE).
+
+    **Authentification**: Cookies JHipster (session-based, pas de Bearer token).
+    **Base URL**: `https://portail-support.sesam-vitale.fr/gsvextranet/api`
+
+    ⚠️ **Note**: Cette documentation est basée sur un reverse-engineering de l'API.
+    Elle n'est pas officielle et peut être incomplète ou contenir des erreurs.
+  version: 1.0.0
+  contact:
+    name: "Sesam Ticket Manager"
+servers:
+  - url: "https://portail-support.sesam-vitale.fr/gsvextranet/api"
+    description: Production
+
+security:
+  - cookieAuth: []
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ID utilisateur (hex)
+        email:
+          type: string
+          format: email
+        applicationLanguage:
+          type: object
+          properties:
+            id:
+              type: string
+            code:
+              type: string
+              example: "fr_FR"
+            label:
+              type: string
+              example: "Français"
+        timeZone:
+          type: object
+          properties:
+            id:
+              type: string
+            code:
+              type: string
+              example: "Europe/Paris"
+            label:
+              type: string
+
+    RefValue:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ID (hex)
+        code:
+          type: string
+          description: Code interne
+        label:
+          type: string
+          description: Label affiché
+        nu1:
+          type: boolean
+        pos:
+          type: integer
+
+    Service:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        qualifs:
+          type: array
+          items:
+            type: string
+            description: IDs des qualifications
+
+    Qualification:
+      type: object
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        parentQualification:
+          $ref: '#/components/schemas/Qualification'
+        topLevelQualification:
+          $ref: '#/components/schemas/Qualification'
+
+    Attachment:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        contentType:
+          type: string
+          example: "image/png"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        size:
+          type: integer
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ID du message (hex)
+        description:
+          type: string
+          description: Contenu du message (peut contenir du HTML)
+        type:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "INEXTRANET"
+            label:
+              type: string
+              example: "Extranet entrant"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ID ticket (hex, 16 caractères)
+        code:
+          type: string
+          description: Référence affichée (ex. 26-083-026025)
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          description: Description du ticket
+        status:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "ENCOURS"
+            label:
+              type: string
+              example: "En cours"
+        priority:
+          type: object
+          properties:
+            code:
+              type: string
+              enum: [AVERAGE, HAUTE, CRITIQUE]
+            label:
+              type: string
+        typeTicket:
+          type: object
+          properties:
+            code:
+              type: string
+              enum: [DEMANDE, INCIDENT, PROBLEME, CHANGEMENT, REFERENCEMENT]
+            label:
+              type: string
+        service:
+          type: object
+          properties:
+            id:
+              type: string
+            label:
+              type: string
+        qualification:
+          type: object
+          properties:
+            id:
+              type: string
+            code:
+              type: string
+            label:
+              type: string
+        person:
+          type: object
+          properties:
+            id:
+              type: string
+            firstName:
+              type: string
+            lastName:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    TicketList:
+      type: object
+      properties:
+        objectsList:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ticket'
+        totalSize:
+          type: integer
+        pageSize:
+          type: integer
+
+paths:
+  /account:
+    get:
+      summary: Récupérer les informations de l'utilisateur connecté
+      description: Retourne les détails du compte de l'utilisateur actuellement authentifié
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Informations utilisateur
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Non authentifié
+
+  /refvalues:
+    get:
+      summary: Récupérer les valeurs de référence
+      description: |
+        Récupère les listes de valeurs de référence.
+
+        **Codes tableCode supportés**:
+        - `Tt_` - Types de tickets (DEMANDE, INCIDENT, PROBLEME, CHANGEMENT, REFERENCEMENT)
+        - `Rst` - Statuts des tickets (ENCOURS, RESOLU, etc.)
+        - `Sd_` - Domaines ou catégories
+        - `Im_` - Impacts ou impacts possibles
+      tags:
+        - Reference Data
+      parameters:
+        - name: tableCode
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [Tt_, Rst, Sd_, Im_]
+          example: "Tt_"
+      responses:
+        '200':
+          description: Liste de valeurs de référence
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RefValue'
+
+  /option:
+    get:
+      summary: Récupérer une option de configuration
+      tags:
+        - Configuration
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+          examples:
+            - value: "MaxUploadSize"
+            - value: "Security.UploadExtensionWhiteList"
+      responses:
+        '200':
+          description: Valeur de l'option
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  value:
+                    type: string
+
+  /requests/company:
+    get:
+      summary: Lister tous les tickets de la société
+      description: |
+        Récupère la liste paginée des tickets de l'organisation.
+
+        **Quirk**: Le paramètre est `nbOfResults` (avec un 's'), contrairement à `/messages` qui utilise `nbOfResult`.
+      tags:
+        - Tickets
+      parameters:
+        - name: notClosed
+          in: query
+          schema:
+            type: boolean
+          description: Filtrer les tickets non fermés (défaut true)
+        - name: fromPageNumber
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: nbOfResults
+          in: query
+          schema:
+            type: integer
+            default: 30
+        - name: orderBy
+          in: query
+          schema:
+            type: string
+            default: "DmdCrDt"
+          description: Champ de tri
+        - name: orderWay
+          in: query
+          schema:
+            type: string
+            default: " DESC"
+          description: Direction de tri
+      responses:
+        '200':
+          description: Liste des tickets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketList'
+
+  /requests:
+    get:
+      summary: Lister les tickets (alias)
+      description: |
+        Équivalent de `/requests/company` avec les mêmes paramètres.
+      tags:
+        - Tickets
+      parameters:
+        - name: notClosed
+          in: query
+          schema:
+            type: boolean
+        - name: fromPageNumber
+          in: query
+          schema:
+            type: integer
+        - name: nbOfResults
+          in: query
+          schema:
+            type: integer
+        - name: orderBy
+          in: query
+          schema:
+            type: string
+        - name: orderWay
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste des tickets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketList'
+
+  /requests/{id}:
+    get:
+      summary: Récupérer les détails d'un ticket
+      tags:
+        - Tickets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{16}$'
+          description: ID du ticket (hex, 16 caractères)
+      responses:
+        '200':
+          description: Détails du ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ticket'
+        '404':
+          description: Ticket non trouvé
+
+  /requests/{id}/messages:
+    get:
+      summary: Récupérer les messages d'un ticket
+      description: |
+        Récupère la liste paginée des messages/commentaires d'un ticket.
+
+        **Quirk**: Le paramètre est `nbOfResult` (SANS 's'), contrairement à `/requests/company` qui utilise `nbOfResults`.
+      tags:
+        - Tickets Messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{16}$'
+        - name: fromPageNumber
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: nbOfResult
+          in: query
+          schema:
+            type: integer
+            default: 5
+          description: Nombre de résultats (NOTE: sans 's', pas 'nbOfResults')
+      responses:
+        '200':
+          description: Liste des messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  objectsList:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  totalSize:
+                    type: integer
+                  pageSize:
+                    type: integer
+
+  /requests/{id}/messages/attachments:
+    get:
+      summary: Récupérer les pièces jointes des messages d'un ticket
+      description: |
+        Retourne un objet où les clés sont les IDs de messages et les valeurs sont des listes de pièces jointes.
+      tags:
+        - Tickets Messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{16}$'
+      responses:
+        '200':
+          description: Pièces jointes organisées par message
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Attachment'
+
+  /messages/{messageId}:
+    get:
+      summary: Récupérer les détails d'un message
+      tags:
+        - Messages
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Détails du message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+
+  /messages/{messageId}/attachments:
+    get:
+      summary: Récupérer les pièces jointes d'un message
+      tags:
+        - Messages Attachments
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste des pièces jointes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Attachment'
+
+  /requests/services:
+    get:
+      summary: Récupérer la liste des services
+      description: Retourne les services disponibles avec les qualifications associées
+      tags:
+        - Reference Data
+      responses:
+        '200':
+          description: Liste des services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+
+  /requests/qualifications:
+    get:
+      summary: Récupérer la liste des qualifications
+      description: Retourne toutes les qualifications disponibles avec les hiérarchies
+      tags:
+        - Reference Data
+      parameters:
+        - name: all
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Récupérer toutes les qualifications
+      responses:
+        '200':
+          description: Liste des qualifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Qualification'
+
+  /notifications:
+    get:
+      summary: Récupérer les notifications
+      tags:
+        - Notifications
+      parameters:
+        - name: isRead
+          in: query
+          schema:
+            type: boolean
+          description: Filtrer par statut de lecture
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: nbOfResult
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Liste des notifications organisées par heure
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notificationsByHourMap:
+                    type: object
+                    additionalProperties:
+                      type: array
+
+  /faqs/fromQualif:
+    get:
+      summary: Récupérer les FAQs par qualification
+      tags:
+        - FAQs
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Code ou ID de qualification
+      responses:
+        '200':
+          description: FAQs correspondantes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+tags:
+  - name: Authentication
+    description: Authentification et compte utilisateur
+  - name: Tickets
+    description: Gestion des tickets/demandes
+  - name: Tickets Messages
+    description: Messages et commentaires des tickets
+  - name: Messages
+    description: Opérations sur les messages
+  - name: Messages Attachments
+    description: Pièces jointes des messages
+  - name: Reference Data
+    description: Données de référence (services, qualifications, etc.)
+  - name: Notifications
+    description: Notifications utilisateur
+  - name: FAQs
+    description: Foire Aux Questions
+  - name: Configuration
+    description: Options de configuration du serveur
