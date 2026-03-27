@@ -13,14 +13,73 @@ else
   GREEN=''; YELLOW=''; CYAN=''; BOLD=''; RESET=''
 fi
 
+# ─── Mise à jour automatique ──────────────────────────────────────────────────
+_RELEASE_BASE="https://github.com/thomasgiroire/sesam-ticket-manager/releases/latest/download"
+_VERSION_FILE="$RUN_DIR/.version"
+_do_update=true
+for _arg in "$@"; do [[ "$_arg" == "--no-update" ]] && _do_update=false; done
+
+if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
+
+  echo -e "${CYAN}Vérification des mises à jour...${RESET}"
+
+  _REMOTE_SHA=$(curl -sf --max-time 5 "$_RELEASE_BASE/sesam-ticket-manager.sha1" | tr -d '[:space:]')
+
+  if [[ -z "$_REMOTE_SHA" ]]; then
+    echo -e "${YELLOW}⚠ Impossible de vérifier les mises à jour (pas de réseau ?).${RESET}"
+  else
+    _LOCAL_SHA=""
+    [[ -f "$_VERSION_FILE" ]] && _LOCAL_SHA=$(cat "$_VERSION_FILE" | tr -d '[:space:]')
+
+    if [[ "$_LOCAL_SHA" == "$_REMOTE_SHA" ]]; then
+      echo -e "${GREEN}✓ Application à jour.${RESET}"
+    else
+      echo -e "${GREEN}→ Nouvelle version détectée. Mise à jour en cours...${RESET}"
+      _TMP_DIR=$(mktemp -d)
+
+      if curl -sL --max-time 60 "$_RELEASE_BASE/sesam-ticket-manager.zip" \
+              -o "$_TMP_DIR/update.zip" \
+          && unzip -q "$_TMP_DIR/update.zip" -d "$_TMP_DIR/extracted"; then
+
+        # Snapshot requirements.txt avant remplacement
+        _REQ_BEFORE=$(md5 -q "$SCRIPT_DIR/requirements.txt" 2>/dev/null \
+                      || md5sum "$SCRIPT_DIR/requirements.txt" 2>/dev/null | awk '{print $1}')
+
+        # Copier les fichiers applicatifs (pas run/, install.sh, start.sh, docs/)
+        cp "$_TMP_DIR/extracted"/*.py            "$SCRIPT_DIR/"
+        cp "$_TMP_DIR/extracted/requirements.txt" "$SCRIPT_DIR/"
+        cp -r "$_TMP_DIR/extracted/templates"    "$SCRIPT_DIR/"
+        cp -r "$_TMP_DIR/extracted/static"       "$SCRIPT_DIR/"
+
+        _REQ_AFTER=$(md5 -q "$SCRIPT_DIR/requirements.txt" 2>/dev/null \
+                     || md5sum "$SCRIPT_DIR/requirements.txt" 2>/dev/null | awk '{print $1}')
+
+        # Réinstaller les dépendances si requirements.txt a changé
+        if [[ "$_REQ_BEFORE" != "$_REQ_AFTER" && -d "$RUN_DIR/.venv" ]]; then
+          echo -e "${CYAN}→ Nouvelles dépendances. Installation...${RESET}"
+          "$RUN_DIR/.venv/bin/pip" install -r "$SCRIPT_DIR/requirements.txt" --quiet
+        fi
+
+        echo "$_REMOTE_SHA" > "$_VERSION_FILE"
+        echo -e "${GREEN}✓ Application mise à jour.${RESET}"
+      else
+        echo -e "${YELLOW}⚠ Téléchargement échoué. Démarrage avec la version actuelle.${RESET}"
+      fi
+
+      rm -rf "$_TMP_DIR"
+    fi
+  fi
+fi
+
 # ─── Aide ─────────────────────────────────────────────────────────────────────
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
   echo ""
   echo -e "${BOLD}SESAM Ticket Manager — Aide rapide${RESET}"
   echo ""
   echo -e "${BOLD}UTILISATION${RESET}"
-  echo -e "  ${GREEN}./start.sh${RESET}          Démarrer l'application web"
-  echo -e "  ${GREEN}./start.sh --help${RESET}   Afficher cette aide"
+  echo -e "  ${GREEN}./start.sh${RESET}             Démarrer l'application web"
+  echo -e "  ${GREEN}./start.sh --no-update${RESET} Démarrer sans vérifier les mises à jour"
+  echo -e "  ${GREEN}./start.sh --help${RESET}      Afficher cette aide"
   echo ""
   echo -e "${BOLD}PREMIER DÉMARRAGE${RESET}"
   echo -e "  Si l'application n'est pas encore installée, lancez d'abord :"

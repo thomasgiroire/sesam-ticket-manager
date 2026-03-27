@@ -43,3 +43,26 @@ jobs:
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build release zip
+      run: bash package.sh --release
+
+    - name: Publish GitHub Release (latest)
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: "Latest"
+        prerelease: false
+        files: |
+          sesam-ticket-manager.zip
+          sesam-ticket-manager.sha1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

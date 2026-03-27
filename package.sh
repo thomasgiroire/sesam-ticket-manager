@@ -7,11 +7,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_NAME="sesam-ticket-manager"
 DATE=$(date +%Y-%m-%d)
 OUTPUT="${SCRIPT_DIR}/${PROJECT_NAME}-${DATE}.zip"
+RELEASE_MODE=false
 
-# Option --desktop
-if [[ "${1:-}" == "--desktop" ]]; then
-  OUTPUT="${HOME}/Desktop/${PROJECT_NAME}-${DATE}.zip"
-fi
+# Options
+for _arg in "$@"; do
+  case "$_arg" in
+    --desktop) OUTPUT="${HOME}/Desktop/${PROJECT_NAME}-${DATE}.zip" ;;
+    --release) RELEASE_MODE=true; OUTPUT="${SCRIPT_DIR}/${PROJECT_NAME}.zip" ;;
+  esac
+done
 
 # Vérification qu'on est bien à la racine du projet
 if [[ ! -f "${SCRIPT_DIR}/main.py" ]]; then
@@ -49,6 +53,15 @@ zip -r "$OUTPUT" "${ITEMS[@]}" \
 echo ""
 echo "✅ Archive créée : $OUTPUT"
 echo "   Taille : $(du -sh "$OUTPUT" | cut -f1)"
+
+# En mode release : générer le fichier SHA1 à côté du ZIP
+if [[ "$RELEASE_MODE" == true ]]; then
+  SHA1_FILE="${OUTPUT%.zip}.sha1"
+  sha1sum "$OUTPUT" | awk '{print $1}' > "$SHA1_FILE"
+  echo "   SHA1   : $(cat "$SHA1_FILE")"
+  echo "🔖 Fichier SHA1 : $(basename "$SHA1_FILE")"
+fi
+
 echo ""
 echo "📋 Contenu :"
 zip -sf "$OUTPUT"
