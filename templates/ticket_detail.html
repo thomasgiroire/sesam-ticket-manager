@@ -60,7 +60,7 @@
 
       <div>
         <div class="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-1">Créé le</div>
-        <div class="text-sm text-gray-700">{{ ticket.created_at | format_date_short }}</div>
+        <div class="text-sm font-medium {% if not ticket.closed_at %}{{ ticket.created_at | age_color }}{% else %}text-gray-700{% endif %}">{{ ticket.created_at | format_date_short }}</div>
       </div>
 
       {% if ticket.updated_at %}

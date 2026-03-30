@@ -22,6 +22,7 @@ Notes :
 
 import sys
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import click
@@ -111,6 +112,22 @@ def _status_style(status: str) -> str:
 def _priority_style(priority: str) -> str:
     """Retourne le style Rich correspondant à la priorité du ticket."""
     return PRIORITY_STYLE.get(priority.lower(), "white")
+
+
+def _age_style(dt_str: str) -> str:
+    """Retourne le style Rich selon l'ancienneté du ticket."""
+    if not dt_str:
+        return "dim"
+    try:
+        created = datetime.fromisoformat(dt_str[:19]).replace(tzinfo=timezone.utc)
+        age_days = (datetime.now(timezone.utc) - created).days
+        if age_days > 30:
+            return "red"
+        if age_days > 7:
+            return "yellow"
+        return "dim"
+    except (ValueError, TypeError):
+        return "dim"
 
 def _resolve_id(portal: PortalClient, code_or_id: str) -> str:
     """
@@ -208,10 +225,12 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
     table.add_column("Titre",        max_width=50)
     table.add_column("Demandeur",    max_width=20)
     table.add_column("Mis à jour",   width=17)
+    table.add_column("Créé le",      width=17)
 
     for t in tickets:
         st_style = _status_style(t.status)
         pr_style = _priority_style(t.priority)
+        age_style = _age_style(t.created_at) if not t.closed_at else "dim"
         table.add_row(
             t.code,
             t.type_ticket,
@@ -220,6 +239,7 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
             t.titre[:50],
             t.author or "—",
             (t.updated_at[:16] if t.updated_at else "—").replace("T", " "),
+            Text((t.created_at[:16] if t.created_at else "—").replace("T", " "), style=age_style),
         )
 
     console.print(table)

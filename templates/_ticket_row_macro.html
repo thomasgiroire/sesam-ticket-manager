@@ -1,11 +1,14 @@
-{% macro ticket_row(ticket) %}
+{% macro ticket_row(ticket, show_created=false) %}
 <a href="/tickets/{{ ticket.id }}"
-   class="grid grid-cols-[8rem_minmax(0,1fr)_1.5rem_10rem_10rem_8rem] gap-4 items-center px-5 py-3.5 hover:bg-indigo-50 transition-colors group min-w-[44rem]">
+   class="grid {% if show_created %}grid-cols-[8rem_minmax(0,1fr)_1.5rem_10rem_10rem_8rem_8rem] min-w-[52rem]{% else %}grid-cols-[8rem_minmax(0,1fr)_1.5rem_10rem_10rem_8rem] min-w-[44rem]{% endif %} gap-4 items-center px-5 py-3.5 hover:bg-indigo-50 transition-colors group">
   <span class="font-mono text-xs text-gray-400">{{ ticket.code }}</span>
   <span class="text-sm text-gray-800 group-hover:text-indigo-700 font-medium truncate">{{ ticket.titre }}</span>
   <span class="text-base leading-none">{% if ticket.updated_at | is_hot %}🔥{% endif %}</span>
   <span class="text-xs px-2 py-0.5 rounded-full font-medium w-fit {{ ticket.status | status_color }}">{{ ticket.status }}</span>
   <span class="text-xs text-gray-500 truncate">{{ ticket.author }}</span>
   <span class="text-xs text-gray-400 text-right">{{ ticket.updated_at | format_date_short }}</span>
+  {% if show_created %}
+  <span class="text-xs text-right {% if not ticket.closed_at %}{{ ticket.created_at | age_color }}{% else %}text-gray-400{% endif %}">{{ ticket.created_at | format_date_short }}</span>
+  {% endif %}
 </a>
 {% endmacro %}

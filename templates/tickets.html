@@ -76,18 +76,19 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div class="overflow-x-auto">
       <!-- Header row -->
-      <div class="hidden sm:grid grid-cols-[8rem_minmax(0,1fr)_1.5rem_10rem_10rem_8rem] gap-4 px-5 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide min-w-[44rem]">
+      <div class="hidden sm:grid grid-cols-[8rem_minmax(0,1fr)_1.5rem_10rem_10rem_8rem_8rem] gap-4 px-5 py-2.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide min-w-[52rem]">
         <span>Référence</span>
         <span>Titre</span>
         <span></span>
         <span>Statut</span>
         <span>Auteur</span>
         <span class="text-right">Mis à jour</span>
+        <span class="text-right">Créé le</span>
       </div>
 
       <div class="divide-y divide-gray-50">
         {% for ticket in tickets %}
-        {{ ticket_row(ticket) }}
+        {{ ticket_row(ticket, show_created=true) }}
         {% else %}
         <div class="px-5 py-12 text-center text-gray-400 text-sm">
           Aucun ticket ne correspond aux filtres sélectionnés.

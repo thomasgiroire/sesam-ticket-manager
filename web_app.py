@@ -246,6 +246,22 @@ def _format_date_short(dt_str: str) -> str:
     return format_iso_date(dt_str, fmt="%d/%m/%Y")
 
 
+def _ticket_age_class(dt_str: str) -> str:
+    """Return a Tailwind CSS color class based on ticket age."""
+    if not dt_str:
+        return "text-gray-400"
+    try:
+        created = datetime.fromisoformat(dt_str[:19]).replace(tzinfo=timezone.utc)
+        age_days = (datetime.now(timezone.utc) - created).days
+        if age_days > 30:
+            return "text-red-500"
+        if age_days > 7:
+            return "text-amber-500"
+        return "text-gray-400"
+    except (ValueError, TypeError):
+        return "text-gray-400"
+
+
 def _clean_body(text: str) -> str:
     """Normalize line endings and collapse consecutive blank lines to at most one."""
     if not text:
@@ -262,6 +278,7 @@ def _clean_body(text: str) -> str:
 templates.env.filters["format_date"] = _format_date
 templates.env.filters["format_date_short"] = _format_date_short
 templates.env.filters["clean_body"] = _clean_body
+templates.env.filters["age_color"] = _ticket_age_class
 
 
 def _is_client_author(type_code: str) -> bool:
