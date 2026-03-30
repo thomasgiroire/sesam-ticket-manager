@@ -6,6 +6,7 @@ Lancement : uvicorn web_app:app --reload --port 8473
 """
 
 import asyncio
+import heapq
 import json
 import math
 import os
@@ -294,6 +295,26 @@ def _is_client_author(type_code: str) -> bool:
 templates.env.filters["is_client_author"] = _is_client_author
 
 
+def _is_gie_relance(msgs: list) -> bool:
+    """Retourne True si les 2 derniers messages (par date) sont du GIE."""
+    if len(msgs) < 2:
+        return False
+    # nlargest évite de trier toute la liste pour ne récupérer que les 2 derniers
+    last_two = heapq.nlargest(2, msgs, key=lambda m: m.created_at or "")
+    return all(not _is_client_author(m.type_code) for m in last_two)
+
+
+def _enrich_gie_relance(tickets: list) -> None:
+    """Enrichit les tickets avec le flag gie_relance depuis le cache mémoire (in-place)."""
+    for t in tickets:
+        if _is_closed_status(t.status):
+            continue
+        cached = _mem_cache.get(f"messages:{t.id}")
+        if cached:
+            _, msgs = cached
+            t.gie_relance = _is_gie_relance(msgs)
+
+
 def _status_color(status: str) -> str:
     """Return a Tailwind color class for the status badge."""
     s = (status or "").lower()
@@ -533,16 +554,10 @@ async def dashboard(request: Request, updated: int | None = None):
     for t in tickets:
         status_counts[t.status] = status_counts.get(t.status, 0) + 1
 
-    # Recent tickets: tous ceux mis à jour dans les 24h, + les actifs récents pour compléter
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()[:19]
+    # Tous les tickets ouverts, triés par date de mise à jour décroissante
+    recent = sorted(open_tickets, key=lambda t: t.updated_at or "", reverse=True)
 
-    def _is_active(t):
-        s = t.status.lower()
-        return "clos" not in s and "résolu" not in s and "fermé" not in s and "suspendu" not in s
-
-    hot = sorted([t for t in tickets if (t.updated_at or "") >= cutoff], key=lambda t: t.updated_at or "", reverse=True)
-    active = sorted([t for t in tickets if _is_active(t) and t not in hot], key=lambda t: t.updated_at or "", reverse=True)
-    recent = (hot + active)[:15]
+    _enrich_gie_relance(recent)
 
     return templates.TemplateResponse(request, "dashboard.html", {
         "total": total,
@@ -591,6 +606,9 @@ async def tickets_list(
     tickets = sorted(tickets, key=lambda t: t.updated_at or "", reverse=True)
 
     filtered = _filter_tickets(tickets, status=status, type_=type, q=q)
+
+    # Enrich tickets with GIE relance flag
+    _enrich_gie_relance(filtered)
 
     return templates.TemplateResponse(request, "tickets.html", {
         "tickets": filtered,
@@ -809,6 +827,17 @@ async def ticket_reply(
         client = _get_client()
         client.add_message(ticket_id, title="Réponse éditeur", body=message)
         _invalidate(f"messages:{ticket_id}")
+        # Reset gie_relance immédiatement — notre réponse est maintenant le dernier message
+        cached_tickets = _mem_cache.get("tickets:all")
+        if cached_tickets:
+            ts, ticket_list = cached_tickets
+            for t in ticket_list:
+                if t.id == ticket_id:
+                    t.gie_relance = False
+                    break
+            disk_data = _disk_load() or {}
+            disk_data["tickets:all"] = _serialize_tickets(ticket_list)
+            _disk_save(disk_data)
         if action == "close":
             client.resolve_ticket(ticket_id)
             _invalidate("tickets:all")
@@ -900,6 +929,7 @@ def _delta_refresh(client: PortalClient) -> int:
 
     # Step 4 : deepdive — fetch messages for each changed ticket
     final_by_code = {t.code: t for t in current}
+    changed_codes = {t.code for t in changed}
     change_details = []
     for t in changed:
         old = cached_lookup.get(t.code)
@@ -913,8 +943,32 @@ def _delta_refresh(client: PortalClient) -> int:
         try:
             messages = client.get_enriched_messages(t.id)
             _cache_set(f"messages:{t.id}", (time.time(), messages))
+            # Calcule et persiste gie_relance depuis les messages frais
+            ticket_obj = final_by_code[t.code]
+            if not _is_closed_status(ticket_obj.status):
+                ticket_obj.gie_relance = _is_gie_relance(messages)
         except Exception as e:
             logger.warning(f"Failed to enrich messages for ticket {t.id}: {e}")
+
+    # Calcule gie_relance pour les tickets "En attente" non déjà traités
+    # get_messages (1 req) suffit ici — pas besoin des métadonnées pièces jointes
+    waiting_tickets = [
+        t for t in current
+        if "attente" in t.status.lower() and t.code not in changed_codes
+    ]
+    for t in waiting_tickets:
+        try:
+            messages = client.get_messages(t.id)
+            final_by_code[t.code].gie_relance = _is_gie_relance(messages)
+        except Exception as e:
+            logger.warning(f"Failed to compute gie_relance for ticket {t.id}: {e}")
+
+    # Preserve gie_relance pour les tickets inchangés hors "En attente" depuis le cache précédent
+    waiting_codes = {t.code for t in waiting_tickets}
+    enriched_codes = changed_codes | waiting_codes
+    for code, t in final_by_code.items():
+        if code not in enriched_codes and code in cached_lookup:
+            t.gie_relance = cached_lookup[code].gie_relance
 
     # Step 5 : persist updated ticket list
     ticket_list = list(final_by_code.values())

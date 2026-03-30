@@ -10,7 +10,20 @@
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body class="bg-gray-50 min-h-screen font-sans">
+<body class="bg-gray-50 min-h-screen font-sans" x-data="{ syncing: false, syncLabel: '' }">
+
+  <!-- Loading overlay sync -->
+  <div x-show="syncing" x-transition.opacity
+       class="fixed inset-0 z-[100] flex items-center justify-center bg-white/70 backdrop-blur-sm">
+    <div class="flex flex-col items-center gap-3 bg-white border border-gray-200 rounded-2xl shadow-xl px-10 py-8">
+      <svg class="w-8 h-8 text-indigo-500 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+      </svg>
+      <span class="text-sm font-semibold text-gray-700" x-text="syncLabel"></span>
+      <span class="text-xs text-gray-400">Calcul des relances GIE en cours…</span>
+    </div>
+  </div>
 
   <!-- Navigation -->
   <nav class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
@@ -50,7 +63,8 @@
             </button>
             <div x-show="open" x-transition
                  class="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
-              <form method="POST" action="/refresh">
+              <form method="POST" action="/refresh"
+                    @submit="syncing = true; syncLabel = 'Synchronisation delta en cours…'">
                 <button type="submit"
                         class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
                         title="Détecte les changements de statut et récupère les nouveaux messages">
@@ -61,7 +75,8 @@
                   Sync delta
                 </button>
               </form>
-              <form method="POST" action="/refresh/full">
+              <form method="POST" action="/refresh/full"
+                    @submit="syncing = true; syncLabel = 'Synchronisation complète en cours…'">
                 <button type="submit"
                         class="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 text-left"
                         title="Recharge tous les tickets depuis le portail">

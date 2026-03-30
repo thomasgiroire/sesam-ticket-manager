@@ -193,6 +193,7 @@ class Ticket:
     description: str  = ""
     messages: list    = field(default_factory=list)
     raw: dict         = field(default_factory=dict)
+    gie_relance: bool = False  # True si dernier message envoyé par le GIE (ticket actif en attente de notre réponse)
 
     def to_dict(self) -> dict:
         """Sérialise le ticket en dict JSON-compatible (sans le champ raw)."""
