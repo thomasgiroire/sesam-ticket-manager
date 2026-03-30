@@ -42,21 +42,35 @@
   {% endif %}
 {% endif %}
 
-<!-- Stats cards -->
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-    <div class="text-3xl font-bold text-indigo-600">{{ open_count }}</div>
-    <div class="text-sm text-gray-500 mt-1 font-medium">Tickets ouverts</div>
+<!-- Stats gauge -->
+{% if open_count > 0 %}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-8">
+  <div class="flex items-center justify-between mb-3">
+    <span class="text-sm font-semibold text-gray-700">
+      Tickets ouverts — <span class="text-indigo-600 font-bold">{{ open_count }}</span>
+    </span>
+    <span class="text-xs text-gray-400">{{ total }} au total</span>
   </div>
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-    <div class="text-3xl font-bold text-gray-400">{{ closed_count }}</div>
-    <div class="text-sm text-gray-500 mt-1 font-medium">Tickets clos</div>
+  <div class="flex h-3 rounded-full overflow-hidden gap-px">
+    {% for status, count in status_counts %}
+      {% set color = status | status_bar_color %}
+      {% set pct = (count / open_count * 100) | round(1) %}
+      <div class="{{ color }}"
+           style="width: {{ pct }}%"
+           title="{{ status }} : {{ count }}"></div>
+    {% endfor %}
   </div>
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-    <div class="text-3xl font-bold text-gray-800">{{ total }}</div>
-    <div class="text-sm text-gray-500 mt-1 font-medium">Total</div>
+  <div class="flex flex-wrap gap-4 mt-3">
+    {% for status, count in status_counts %}
+      {% set color = status | status_bar_color %}
+      <span class="flex items-center gap-1.5 text-xs text-gray-600">
+        <span class="inline-block w-2.5 h-2.5 rounded-sm {{ color }}"></span>
+        {{ status }} <span class="font-semibold text-gray-800">{{ count }}</span>
+      </span>
+    {% endfor %}
   </div>
 </div>
+{% endif %}
 
 <!-- Recent tickets -->
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

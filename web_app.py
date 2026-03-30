@@ -332,6 +332,21 @@ def _status_color(status: str) -> str:
 templates.env.filters["status_color"] = _status_color
 
 
+def _status_bar_color(status: str) -> str:
+    """Return a solid Tailwind bg color class for gauge segments."""
+    s = (status or "").lower()
+    if "cours" in s:
+        return "bg-blue-500"
+    if "attente" in s:
+        return "bg-yellow-400"
+    if "expertise" in s or "externe" in s:
+        return "bg-purple-500"
+    return "bg-gray-400"
+
+
+templates.env.filters["status_bar_color"] = _status_bar_color
+
+
 def _priority_color(priority: str) -> str:
     """Return a Tailwind color class for the priority badge."""
     p = (priority or "").lower()
@@ -546,13 +561,13 @@ async def dashboard(request: Request, updated: int | None = None):
 
     # Compute stats
     total = len(tickets)
-    open_tickets = [t for t in tickets if "clos" not in t.status.lower() and "résolu" not in t.status.lower() and "fermé" not in t.status.lower() and "suspendu" not in t.status.lower()]
-    closed_tickets = [t for t in tickets if t not in open_tickets]
+    open_tickets = [t for t in tickets if not _is_closed_status(t.status)]
+    closed_tickets = [t for t in tickets if _is_closed_status(t.status)]
 
-    # Count by status
-    status_counts: dict[str, int] = {}
-    for t in tickets:
-        status_counts[t.status] = status_counts.get(t.status, 0) + 1
+    # Count open tickets by status (only open statuses, used by gauge)
+    open_status_counts: dict[str, int] = {}
+    for t in open_tickets:
+        open_status_counts[t.status] = open_status_counts.get(t.status, 0) + 1
 
     # Tous les tickets ouverts, triés par date de mise à jour décroissante
     recent = sorted(open_tickets, key=lambda t: t.updated_at or "", reverse=True)
@@ -563,7 +578,7 @@ async def dashboard(request: Request, updated: int | None = None):
         "total": total,
         "open_count": len(open_tickets),
         "closed_count": len(closed_tickets),
-        "status_counts": sorted(status_counts.items(), key=lambda x: -x[1]),
+        "status_counts": sorted(open_status_counts.items(), key=lambda x: -x[1]),
         "recent": recent,
         "cache_age": _cache_age(),
         "updated": updated,
@@ -613,6 +628,7 @@ async def tickets_list(
     return templates.TemplateResponse(request, "tickets.html", {
         "tickets": filtered,
         "total_count": len(filtered),
+        "all_count": len(tickets),
         "status_counts": status_counts_sorted,
         "all_types": all_types,
         "filter_status": status or "",
@@ -888,6 +904,9 @@ def _is_closed_status(status: str) -> bool:
     """Retourne True si le statut correspond à un ticket fermé/résolu/suspendu."""
     s = status.lower()
     return "clos" in s or "résolu" in s or "fermé" in s or "suspendu" in s
+
+
+templates.env.filters["is_closed"] = _is_closed_status
 
 
 def _delta_refresh(client: PortalClient) -> int:
