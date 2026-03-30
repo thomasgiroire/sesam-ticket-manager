@@ -588,7 +588,12 @@ async def tickets_list(
 
 
 @app.get("/tickets/create", response_class=HTMLResponse)
-async def create_ticket_form(request: Request):
+async def create_ticket_form(
+    request: Request,
+    service_id: str = "",
+    qualification_id: str = "",
+    description: str = "",
+):
     """Affiche le formulaire de création d'un nouveau ticket."""
     try:
         client = _get_client()
@@ -596,9 +601,13 @@ async def create_ticket_form(request: Request):
         qualifications = client.get_qualifications()
     except (AuthError, APIError) as e:
         return templates.TemplateResponse(request, "error.html", {"error": str(e)}, status_code=503)
+    form = None
+    if service_id or qualification_id or description:
+        form = {"titre": "", "service_id": service_id, "qualification_id": qualification_id, "description": description, "priority_code": "AVERAGE"}
     return templates.TemplateResponse(request, "create_ticket.html", {
         "services": services or [],
         "qualifications": qualifications or [],
+        "form": form,
     })
 
 

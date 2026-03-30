@@ -89,7 +89,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
       </svg>
-      Copier pour DUST
+      Copier en MarkDown
     </button>
 
     <!-- Portal link -->
@@ -239,7 +239,7 @@
         Aucun message pour ce ticket.
       </div>
       {% endfor %}
-      {% set is_closed_panel = 'clos' in ticket.status.lower() or 'résolu' in ticket.status.lower() or 'fermé' in ticket.status.lower() %}
+      {% set is_closed_panel = 'clos' in ticket.status.lower() or 'résolu' in ticket.status.lower() or 'fermé' in ticket.status.lower() or 'suspendu' in ticket.status.lower() %}
       {% set last_msg = messages | last %}
       {% if not is_closed_panel and last_msg and last_msg.type_code not in ("INEXTRANET",) %}
       <form method="POST" action="/tickets/{{ ticket.id }}/resolve"
@@ -307,7 +307,7 @@
     </div>
 
     <!-- Reply form -->
-    {% set is_closed = 'clos' in ticket.status.lower() or 'résolu' in ticket.status.lower() or 'fermé' in ticket.status.lower() %}
+    {% set is_closed = 'clos' in ticket.status.lower() or 'résolu' in ticket.status.lower() or 'fermé' in ticket.status.lower() or 'suspendu' in ticket.status.lower() %}
     {% if not is_closed %}
     <div class="border-t border-gray-100 p-4 shrink-0 bg-gray-50">
       <form method="POST" action="/tickets/{{ ticket.id }}/reply" class="flex flex-col gap-3">
@@ -369,8 +369,17 @@
       </form>
     </div>
     {% else %}
-    <div class="border-t border-gray-100 px-5 py-3 bg-gray-50 text-sm text-gray-400 text-center shrink-0">
-      Ce ticket est clos — impossible d'ajouter un message.
+    <div class="border-t border-gray-100 px-5 py-3 bg-gray-50 shrink-0 flex flex-col items-center gap-2">
+      <p class="text-sm text-gray-400">Ce ticket est clos — impossible d'ajouter un message.</p>
+      <a href="/tickets/create?service_id={{ ticket.service_id | urlencode }}&qualification_id={{ ticket.qualification_id | urlencode }}&description={{ ('En lien avec le ticket ' ~ ticket.code) | urlencode }}"
+         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50
+                text-xs font-medium text-indigo-600 hover:bg-indigo-100 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 4v16m8-8H4"/>
+        </svg>
+        Créer un nouveau ticket lié
+      </a>
     </div>
     {% endif %}
 

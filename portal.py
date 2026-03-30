@@ -187,7 +187,9 @@ class Ticket:
     author: str       # Prénom Nom du demandeur
     created_at: str
     updated_at: str
-    closed_at: str    = ""
+    closed_at: str       = ""
+    service_id: str      = ""
+    qualification_id: str = ""
     description: str  = ""
     messages: list    = field(default_factory=list)
     raw: dict         = field(default_factory=dict)
@@ -969,7 +971,9 @@ class PortalClient:
             priority      = priority_raw.get("label", "") if isinstance(priority_raw, dict) else str(priority_raw),
             type_ticket   = type_raw.get("label", "") if isinstance(type_raw, dict) else str(type_raw),
             service       = service,
+            service_id    = service_raw.get("id", "") if isinstance(service_raw, dict) else "",
             qualification = qualification,
+            qualification_id = qualif_raw.get("id", "") if isinstance(qualif_raw, dict) else "",
             author        = author,
             created_at    = str(data.get("createdAt", "")),
             updated_at    = str(data.get("updatedAt", "")),
