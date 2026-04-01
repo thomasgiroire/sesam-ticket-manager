@@ -152,7 +152,7 @@
           <!-- Author + time -->
           <div class="flex items-center gap-2 px-1 {{ 'flex-row-reverse' if is_mine else '' }}">
             <span class="text-xs font-semibold text-gray-600">
-              {{ ticket.author if is_mine else "SESAM-Vitale" }}
+              {{ (msg.author or ticket.author) if is_mine else "SESAM-Vitale" }}
             </span>
             <span class="text-xs text-gray-400">{{ msg.created_at | format_date }}</span>
             {% if msg.type_label %}

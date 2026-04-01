@@ -216,6 +216,7 @@ class Message:
     created_at: str
     attachments: list = field(default_factory=list)
     body_html: str    = ""   # HTML nettoyé (scripts supprimés, img préservées)
+    author: str       = ""   # Prénom Nom de l'auteur du message
 
 
 # ─── State persistant ────────────────────────────────────────────────────────
@@ -987,6 +988,10 @@ class PortalClient:
         """Convertit un objet API en Message normalisé. Nettoie le HTML du corps."""
         type_raw = data.get("type") or {}
         raw_body = str(data.get("description") or "")
+        person_raw = data.get("person") or {}
+        first = person_raw.get("firstName", "")
+        last  = person_raw.get("lastName", "")
+        author = f"{first} {last}".strip() if (first or last) else ""
         return Message(
             id         = str(data.get("id", "")),
             title      = str(data.get("title") or ""),
@@ -996,6 +1001,7 @@ class PortalClient:
             type_label = type_raw.get("label", "") if isinstance(type_raw, dict) else str(type_raw),
             created_at = str(data.get("createdAt", "")),
             attachments= data.get("attachments") or [],
+            author     = author,
         )
 
 

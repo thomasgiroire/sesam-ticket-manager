@@ -206,6 +206,23 @@ class TestTicketParsing:
         assert "identifié" in msg.body
         assert "<" not in msg.body  # HTML stripped
         assert msg.type_code == "INEXTRANET"
+        assert msg.author == ""  # pas de person dans le fixture
+
+    def test_parse_message_with_author(self):
+        client = PortalClient.__new__(PortalClient)
+        data = {
+            "id": "msg002",
+            "title": "Réponse",
+            "description": "Bonjour",
+            "type": {"code": "INEXTRANET", "label": "Extranet entrant"},
+            "createdAt": "2026-03-22T10:00:00Z",
+            "attachments": [],
+            "person": {"firstName": "Thomas", "lastName": "Giroire"},
+        }
+
+        msg = client._parse_message(data)
+
+        assert msg.author == "Thomas Giroire"
 
     def test_ticket_to_dict(self):
         ticket = Ticket(

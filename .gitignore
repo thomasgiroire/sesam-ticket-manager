@@ -32,5 +32,10 @@ htmlcov/
 *.swp
 
 # Claude Code (local machine config)
+.claude/
 .claude/launch.json
 .claude/settings.local.json
+.claude/settings.json
+
+
+*.har
