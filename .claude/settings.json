@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(pytest -v --tb=short)",
-      "Bash(grep -n \"clos.*résolu\\\\|is_closed\\\\|closed_status\" /Users/thomas.giroiredocto/Dev/sesam-ticket-manager/templates/*.html)"
-    ]
-  }
-}
