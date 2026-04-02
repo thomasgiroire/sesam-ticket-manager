@@ -91,13 +91,13 @@ def _cache_set(key: str, value: tuple):
         _mem_cache.popitem(last=False)  # Supprime le plus ancien (FIFO)
 
 
-def _disk_load() -> dict:
-    """Load persisted cache from disk. Returns {} if missing or expired."""
+def _disk_load(check_ttl: bool = True) -> dict:
+    """Load persisted cache from disk. Returns {} if missing or (if check_ttl=True) expired."""
     try:
         if not _DISK_CACHE_FILE.exists():
             return {}
         raw = json.loads(_DISK_CACHE_FILE.read_text(encoding="utf-8"))
-        if time.time() - raw.get("ts", 0) > _DISK_CACHE_TTL:
+        if check_ttl and time.time() - raw.get("ts", 0) > _DISK_CACHE_TTL:
             return {}
         return raw.get("data", {})
     except Exception:
@@ -924,8 +924,10 @@ def _delta_refresh(client: PortalClient) -> int:
     current = client.list_tickets(include_closed=True, fetch_all=True)
 
     # Step 2 : build cached lookup {code → Ticket}
+    # On charge sans TTL : l'état précédent sert de référence de comparaison
+    # quel que soit son âge. Le sync complet reste une action manuelle de l'utilisateur.
     cached_lookup: dict = {}
-    disk_data = _disk_load()
+    disk_data = _disk_load(check_ttl=False)
     if "tickets:all" in disk_data:
         for t in _deserialize_tickets(disk_data["tickets:all"]):
             cached_lookup[t.code] = t
