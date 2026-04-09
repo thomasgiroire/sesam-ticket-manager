@@ -376,18 +376,37 @@
       </form>
     </div>
     {% else %}
-    <div class="border-t border-gray-100 px-5 py-3 bg-gray-50 shrink-0 flex flex-col items-center gap-2">
+    <div class="border-t border-gray-100 px-5 py-3 bg-gray-50 shrink-0 flex flex-col items-center gap-2"
+         x-data="{ copied: false }"
+         @create-linked="
+           const text = 'En lien avec le ticket {{ ticket.code }} : {{ ticket.titre }}';
+           navigator.clipboard.writeText(text);
+           copied = true;
+           setTimeout(() => {
+             copied = false;
+             window.open('https://portail-support.sesam-vitale.fr/gsvextranet/#/requests/create?source=DEMANDE', '_blank');
+           }, 1800);
+         ">
       <p class="text-sm text-gray-400">Ce ticket est clos — impossible d'ajouter un message.</p>
-      <a href="https://portail-support.sesam-vitale.fr/gsvextranet/#/requests/create?source=DEMANDE"
-         target="_blank" rel="noopener noreferrer"
-         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50
-                text-xs font-medium text-indigo-600 hover:bg-indigo-100 transition-colors">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 4v16m8-8H4"/>
-        </svg>
-        Créer un nouveau ticket lié
-      </a>
+      <template x-if="copied">
+        <div class="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 w-full justify-center">
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+          </svg>
+          Référence copiée — redirection vers le portail…
+        </div>
+      </template>
+      <template x-if="!copied">
+        <button @click="$dispatch('create-linked')"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50
+                       text-xs font-medium text-indigo-600 hover:bg-indigo-100 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 4v16m8-8H4"/>
+          </svg>
+          Créer un nouveau ticket lié
+        </button>
+      </template>
     </div>
     {% endif %}
 
