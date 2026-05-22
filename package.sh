@@ -35,8 +35,9 @@ INCLUDE=(
   "main.py" "portal.py" "web_app.py" "config.py" "utils.py" "exceptions.py"
   "requirements.txt" ".env.example" "README.md"
   "start.sh" "install.sh"
+  "bin/"
   "templates/" "static/"
-  "docs/USER_GUIDE_WEBAPP.md" "docs/EXAMPLES.md"
+  "docs/USER_GUIDE_WEBAPP.md" "docs/EXAMPLES.md" "docs/AGENT_USAGE.md"
 )
 
 # Construction de la liste réelle (filtre les inexistants)

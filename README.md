@@ -32,11 +32,14 @@ L'installation va :
 - Installer les dépendances
 - Vous demander vos identifiants SESAM
 - Configurer le port web
+- **Installer deux commandes globales** : `sesam` (CLI) et `sesam-ui` (web)
 
 ### Démarrer l'application
 
 ```bash
-./start.sh
+sesam-ui          # depuis n'importe quel terminal
+# ou
+./start.sh        # depuis le dossier d'installation
 ```
 
 L'app s'ouvre automatiquement dans votre navigateur sur `http://localhost:8473`
@@ -56,6 +59,11 @@ L'app s'ouvre automatiquement dans votre navigateur sur `http://localhost:8473`
   - Architecture de la webapp
   - Endpoints disponibles
   - Configuration avancée
+
+- **[Agent Usage Guide](docs/AGENT_USAGE.md)** — Utiliser `sesam` depuis un agent IA
+  - Contrat de sortie JSON (`--json-output`)
+  - Schémas des commandes
+  - Snippet `CLAUDE.md` prêt à coller
 
 ### 🔧 Pour les développeurs
 
@@ -85,29 +93,68 @@ L'app s'ouvre automatiquement dans votre navigateur sur `http://localhost:8473`
 
 ## 📊 Fonctionnalités
 
-### Web App
+### Web App (`sesam-ui`)
 - Interface web intuitive
 - Listage et recherche de tickets
 - Détails ticket + messages
 - Réponses directes
 - Authentification automatique
 
-**→ Accédée via `./start.sh`**
+**→ Accédée via `sesam-ui` ou `./start.sh`**
 
-### CLI (optionnel)
-Pour utiliser la CLI avancée :
+### CLI (`sesam`)
+Une fois `./install.sh` lancé, la commande `sesam` est disponible depuis
+n'importe quel terminal :
 
 ```bash
-# Activer l'environnement Python
-source run/.venv/bin/activate
-
-# Commandes disponibles
-python main.py list                    # Lister les tickets
-python main.py show <ref>              # Détail d'un ticket
-python main.py messages <ref>          # Voir les messages
-python main.py reply <ref>             # Répondre à un ticket
-python main.py status                  # Vérifier la connexion
+sesam login                   # (Re)configurer les identifiants Portail IRIS
+sesam logout                  # Supprimer la session locale
+sesam list                    # Lister les tickets
+sesam show <ref>              # Détail d'un ticket
+sesam messages <ref>          # Voir les messages
+sesam reply <ref>             # Répondre à un ticket (interactif)
+sesam status                  # Vérifier la connexion
+sesam sync                    # Détecter les nouveaux tickets
+sesam export <ref>            # Exporter un ticket (Markdown/JSON)
 ```
+
+> `sesam login` et `sesam logout` sont **strictement interactifs**
+> (le mot de passe n'est jamais passé en argument). Utilisez-les depuis
+> un terminal pour changer de compte ou réinitialiser une session
+> bloquée — sans avoir à relancer `./install.sh`.
+
+Toutes les commandes acceptent `--json-output` pour une sortie structurée,
+exploitable par un script ou un agent IA. Voir [docs/AGENT_USAGE.md](docs/AGENT_USAGE.md).
+
+> Si `sesam` n'est pas trouvée, c'est que `~/.local/bin` n'est pas dans
+> votre `$PATH` — `./install.sh` affiche la ligne `export` à ajouter à
+> votre `~/.zshrc`.
+
+### 🤖 Usage par un agent IA
+
+Le tool est conçu pour être appelable par un agent type Claude depuis le
+poste de travail. La commande `sesam` est globale, non-interactive en
+mode `--json-output`, et chaque sortie est un objet JSON stable.
+
+Exemple minimal de configuration dans un `CLAUDE.md` (ou prompt système) :
+
+```markdown
+Tu disposes de la commande `sesam` pour interagir avec les tickets
+SESAM-Vitale. Utilise toujours `--json-output`.
+
+- `sesam status --json-output`
+- `sesam list --open-only --json-output`
+- `sesam show <ref> --json-output`
+- `sesam messages <ref> --json-output`
+- `sesam reply <ref> --title "..." --message "..." --json-output`
+
+Si une commande retourne `{"ok": false, "action": "run_login"}`,
+NE TENTE PAS de te connecter toi-même. Demande à l'utilisateur de
+lancer `sesam login` dans un terminal, puis réessaie.
+```
+
+Le contrat complet (stdout JSON, stderr logs, codes de sortie, schémas)
+est documenté dans **[docs/AGENT_USAGE.md](docs/AGENT_USAGE.md)**.
 
 ---
 
@@ -116,7 +163,7 @@ python main.py status                  # Vérifier la connexion
 ```
 sesam-ticket-manager/
 ├── install.sh               # Script d'installation guidée
-├── start.sh                 # Script de démarrage
+├── start.sh                 # Script de démarrage (web)
 ├── main.py                  # CLI Click
 ├── portal.py                # HTTP Client (authentification + API Portail)
 ├── web_app.py               # Application web FastAPI
@@ -125,11 +172,15 @@ sesam-ticket-manager/
 ├── exceptions.py            # Exceptions personnalisées
 ├── requirements.txt         # Dépendances Python
 ├── .env.example             # Template configuration
+├── bin/                     # Wrappers CLI (symlinkés en global par install.sh)
+│   ├── sesam              # Commande CLI globale
+│   └── sesam-ui           # Lance l'UI web (équivalent ./start.sh)
 ├── run/                     # Dossier d'exécution (créé par install.sh)
 │   ├── .venv/              # Environnement Python
 │   ├── .env                # Configuration (généré)
 │   └── .sesam_state.json   # État local (cookies, session)
 ├── docs/
+│   ├── AGENT_USAGE.md      # Contrat CLI pour agent IA
 │   ├── CLI_USER_GUIDE.md
 │   ├── API_REVERSE_ENGINEERING_GUIDE.md
 │   ├── API.md
@@ -139,6 +190,10 @@ sesam-ticket-manager/
 │   └── REVERSE_ENGINEERING.md
 └── tests/                   # Tests pytest
 ```
+
+> `~/.sesam/home` contient le chemin d'installation, lu par les wrappers
+> `sesam` et `sesam-ui` quand on les appelle depuis l'extérieur du dossier
+> projet. La variable `$SESAM_HOME` peut l'override explicitement.
 
 ---
 
@@ -205,12 +260,14 @@ pytest --cov               # Coverage report
 
 | Symptôme | Solution |
 |--|--|
-| `401 Identifiants incorrects` | Vérifier email + password demandés par `./install.sh` |
+| `401 Identifiants incorrects` | `sesam login` pour les mettre à jour |
 | Service : — manquant | Mettre à jour le cache des services (CLI) |
-| Session expirée | Supprimer `run/.sesam_state.json` |
+| Session expirée | `sesam logout` puis relancer une commande (re-auth automatique) |
 | Port 8473 déjà utilisé | `./install.sh` trouvera un port libre automatiquement |
 | `ModuleNotFoundError` | Activer l'env via `source run/.venv/bin/activate` |
 | L'app n'ouvre pas le navigateur | Accédez manuellement à `http://localhost:8473` |
+| `sesam: command not found` | Ajouter `~/.local/bin` au `$PATH` (voir sortie de `./install.sh`) ou relancer `./install.sh` |
+| Wrapper pointe sur mauvais dossier | Vérifier `cat ~/.sesam/home`, ou définir `export SESAM_HOME=/chemin/install` |
 
 Pour plus d'aide CLI → [CLI User Guide - Dépannage](docs/CLI_USER_GUIDE.md#dépannage)
 

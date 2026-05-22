@@ -77,7 +77,7 @@ echo -e "  Les fichiers d'exécution seront créés dans : ${CYAN}run/${RESET}"
 echo -e "  Durée estimée : ${BOLD}2–5 minutes${RESET}"
 
 # ─── Étape 1 : Homebrew ───────────────────────────────────────────────────────
-step "[1/6] Homebrew"
+step "[1/7] Homebrew"
 
 if command -v brew &>/dev/null; then
   ok "Homebrew déjà installé ($(brew --version 2>/dev/null | head -1))"
@@ -98,7 +98,7 @@ else
 fi
 
 # ─── Étape 2 : Python 3.11+ ───────────────────────────────────────────────────
-step "[2/6] Python 3.11+"
+step "[2/7] Python 3.11+"
 
 PYTHON_CMD=""
 for cmd in python3.13 python3.12 python3.11; do
@@ -132,7 +132,7 @@ else
 fi
 
 # ─── Étape 3 : Dossier run/ + Virtualenv + dépendances ────────────────────────
-step "[3/6] Environnement Python (run/)"
+step "[3/7] Environnement Python (run/)"
 
 mkdir -p "$RUN_DIR"
 ok "Dossier run/ prêt."
@@ -151,7 +151,7 @@ info "Installation des dépendances (peut prendre 1–2 min)..."
 ok "Dépendances installées."
 
 # ─── Étape 4 : Port web ───────────────────────────────────────────────────────
-step "[4/6] Port web"
+step "[4/7] Port web"
 
 DEFAULT_PORT=8473
 CHOSEN_PORT=$DEFAULT_PORT
@@ -188,7 +188,7 @@ fi
 ok "Port $CHOSEN_PORT sélectionné."
 
 # ─── Étape 5 : Configuration run/.env ─────────────────────────────────────────
-step "[5/6] Configuration"
+step "[5/7] Configuration"
 
 CONFIGURE_ENV=true
 if [[ -f "$RUN_DIR/.env" ]]; then
@@ -273,19 +273,108 @@ if [[ "$CONFIGURE_ENV" == true ]]; then
   ok "run/.env créé."
 fi
 
-# ─── Étape 6 : Résumé ─────────────────────────────────────────────────────────
-step "[6/6] Prêt !"
+# ─── Étape 6 : Commandes globales 'sesam' et 'sesam-ui' ───────────────────────
+step "[6/7] Commandes globales 'sesam' et 'sesam-ui'"
+
+SESAM_WRAPPER="$SCRIPT_DIR/bin/sesam"
+UI_WRAPPER="$SCRIPT_DIR/bin/sesam-ui"
+SESAM_BIN_INSTALLED=""
+UI_BIN_INSTALLED=""
+
+install_symlink() {
+  # install_symlink <src> <target_dir> <name>
+  local src="$1" target_dir="$2" name="$3"
+  local target="$target_dir/$name"
+
+  if [[ -e "$target" || -L "$target" ]]; then
+    if [[ -L "$target" && "$(readlink "$target")" == "$src" ]]; then
+      ok "Lien déjà en place : $target"
+      echo "$target"
+      return 0
+    fi
+    warn "$target existe déjà — il sera remplacé."
+    rm -f "$target"
+  fi
+  ln -s "$src" "$target"
+  ok "Lien créé : $target → $src"
+  echo "$target"
+}
+
+if [[ ! -x "$SESAM_WRAPPER" || ! -x "$UI_WRAPPER" ]]; then
+  warn "bin/sesam ou bin/sesam-ui introuvable — étape ignorée."
+else
+  # Enregistrer SESAM_HOME pour que les wrappers sachent où vit l'install
+  mkdir -p "$HOME/.sesam"
+  echo "$SCRIPT_DIR" > "$HOME/.sesam/home"
+  ok "SESAM_HOME enregistré dans ~/.sesam/home"
+
+  echo ""
+  echo -e "  Cette étape installe deux commandes accessibles depuis n'importe"
+  echo -e "  quel terminal :"
+  echo -e "    ${BOLD}sesam${RESET}     — CLI (list, show, reply, status, sync…)"
+  echo -e "    ${BOLD}sesam-ui${RESET}  — lance l'interface web (équivalent ./start.sh)"
+  echo ""
+
+  if ask_yn "Installer les commandes globales 'sesam' et 'sesam-ui' ?" "Y"; then
+    # Cibles candidates : /usr/local/bin (Intel), /opt/homebrew/bin (Apple Silicon)
+    # ou fallback ~/.local/bin
+    TARGET_DIR=""
+    for d in /usr/local/bin /opt/homebrew/bin; do
+      if [[ -d "$d" && -w "$d" ]]; then
+        TARGET_DIR="$d"
+        break
+      fi
+    done
+
+    if [[ -z "$TARGET_DIR" ]]; then
+      TARGET_DIR="$HOME/.local/bin"
+      mkdir -p "$TARGET_DIR"
+      info "Pas d'accès en écriture à /usr/local/bin — installation dans $TARGET_DIR"
+    fi
+
+    SESAM_BIN_INSTALLED=$(install_symlink "$SESAM_WRAPPER" "$TARGET_DIR" "sesam")
+    UI_BIN_INSTALLED=$(install_symlink "$UI_WRAPPER" "$TARGET_DIR" "sesam-ui")
+
+    # Vérifier que la cible est dans le $PATH
+    case ":$PATH:" in
+      *":$TARGET_DIR:"*)
+        ok "$TARGET_DIR est déjà dans \$PATH"
+        ;;
+      *)
+        warn "$TARGET_DIR n'est PAS dans votre \$PATH."
+        echo ""
+        echo -e "  Ajoutez cette ligne à ${CYAN}~/.zshrc${RESET} (ou ~/.bashrc) :"
+        echo ""
+        echo -e "    ${BOLD}export PATH=\"$TARGET_DIR:\$PATH\"${RESET}"
+        echo ""
+        echo -e "  Puis rechargez : ${CYAN}source ~/.zshrc${RESET}"
+        ;;
+    esac
+  else
+    info "Étape ignorée — vous pourrez toujours appeler $SESAM_WRAPPER ou $UI_WRAPPER directement."
+  fi
+fi
+
+# ─── Étape 7 : Résumé ─────────────────────────────────────────────────────────
+step "[7/7] Prêt !"
 echo ""
 ok "Python installé"
 ok "Dépendances installées (run/.venv)"
 ok "run/.env configuré"
 ok "Port $CHOSEN_PORT sélectionné"
+[[ -n "$SESAM_BIN_INSTALLED" ]] && ok "Commande CLI    : $SESAM_BIN_INSTALLED"
+[[ -n "$UI_BIN_INSTALLED" ]]    && ok "Commande Web UI : $UI_BIN_INSTALLED"
 echo ""
 echo -e "  ${BOLD}┌──────────────────────────────────────────────────────┐${RESET}"
 echo -e "  ${BOLD}│                                                      │${RESET}"
-echo -e "  ${BOLD}│  Pour lancer l'application :                         │${RESET}"
+echo -e "  ${BOLD}│  Pour lancer l'application web :                     │${RESET}"
 echo -e "  ${BOLD}│                                                      │${RESET}"
+if [[ -n "$UI_BIN_INSTALLED" ]]; then
+echo -e "  ${BOLD}│    ${GREEN}sesam-ui${RESET}${BOLD}        (depuis n'importe où)             │${RESET}"
+echo -e "  ${BOLD}│    ${GREEN}./start.sh${RESET}${BOLD}      (depuis ce dossier)                │${RESET}"
+else
 echo -e "  ${BOLD}│    ${GREEN}./start.sh${RESET}${BOLD}                                       │${RESET}"
+fi
 echo -e "  ${BOLD}│                                                      │${RESET}"
 echo -e "  ${BOLD}│  L'app s'ouvrira automatiquement dans votre          │${RESET}"
 echo -e "  ${BOLD}│  navigateur sur http://localhost:${CHOSEN_PORT}              │${RESET}"

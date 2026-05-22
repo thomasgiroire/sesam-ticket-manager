@@ -20,12 +20,15 @@ Notes :
   - Les deux formats sont acceptés par les commandes show/messages/reply
 """
 
+import getpass
+import os
 import sys
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 import click
+import requests
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -35,9 +38,34 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+PORTAL_BASE_URL = os.getenv(
+    "PORTAL_BASE_URL",
+    "https://portail-support.sesam-vitale.fr/gsvextranet",
+)
+
 from portal import PortalClient, Ticket
-from exceptions import AuthError, APIError
+from exceptions import AuthError, APIError, ConfigError
 from utils import setup_logging, get_logger, format_ticket_export
+
+
+def _emit_error_json(exc: Exception) -> None:
+    """Imprime une erreur structurée sur stdout pour les agents.
+
+    Pour les erreurs d'auth/config, ajoute `action: "run_login"` afin que
+    l'agent puisse demander à l'utilisateur de lancer `sesam login`.
+    """
+    payload: dict = {"ok": False, "error": str(exc)}
+    if isinstance(exc, (AuthError, ConfigError)):
+        payload["action"] = "run_login"
+        payload["hint"] = "Lancez `sesam login` dans un terminal pour vous (re)connecter."
+    print(json.dumps(payload, ensure_ascii=False))
+
+
+def _print_error_human(exc: Exception) -> None:
+    """Affiche une erreur sur la console et suggère `sesam login` si pertinent."""
+    console.print(f"[red]❌ {exc}[/red]")
+    if isinstance(exc, (AuthError, ConfigError)):
+        console.print("[dim]→ Lancez [cyan]sesam login[/cyan] pour vous (re)connecter.[/dim]")
 
 logger = get_logger(__name__)
 console = Console()
@@ -152,12 +180,23 @@ def _resolve_id(portal: PortalClient, code_or_id: str) -> str:
 # ─── Groupe CLI ──────────────────────────────────────────────────────────────
 
 class LogoGroup(click.Group):
+    @staticmethod
+    def _suppress_logo() -> bool:
+        # Pas de logo en mode JSON ni quand stdout n'est pas un TTY (pipes, agents).
+        if "--json-output" in sys.argv:
+            return True
+        if not sys.stdout.isatty():
+            return True
+        return False
+
     def invoke(self, ctx):
-        _print_logo()
+        if not self._suppress_logo():
+            _print_logo()
         super().invoke(ctx)
 
     def get_help(self, ctx):
-        _print_logo()
+        if not self._suppress_logo():
+            _print_logo()
         return super().get_help(ctx)
 
 
@@ -259,8 +298,8 @@ def show(code_or_id, json_out):
     with console.status(f"Chargement du ticket {code_or_id}..."):
         try:
             ticket = portal.get_ticket(ticket_id)
-        except (AuthError, APIError) as e:
-            console.print(f"[red]❌ {e}[/red]")
+        except (AuthError, APIError, ConfigError) as e:
+            _print_error_human(e)
             sys.exit(1)
 
     if json_out:
@@ -316,8 +355,8 @@ def messages(code_or_id, limit, json_out):
     with console.status("Chargement des messages..."):
         try:
             msgs = portal.get_messages(ticket_id, limit=limit)
-        except (AuthError, APIError) as e:
-            console.print(f"[red]❌ {e}[/red]")
+        except (AuthError, APIError, ConfigError) as e:
+            _print_error_human(e)
             sys.exit(1)
 
     if json_out:
@@ -345,25 +384,36 @@ def messages(code_or_id, limit, json_out):
 @click.argument("code_or_id")
 @click.option("--title", "-t", default=None, help="Titre du message")
 @click.option("--message", "-m", default=None, help="Corps du message")
-def reply(code_or_id, title, message):
+@click.option("--yes", "-y", "assume_yes", is_flag=True, help="Ne pas demander confirmation (mode non-interactif)")
+@click.option("--json-output", "json_out", is_flag=True, help="Sortie JSON brut (implique --yes)")
+def reply(code_or_id, title, message, assume_yes, json_out):
     """✏️  Ajouter un message à un ticket."""
+    non_interactive = assume_yes or json_out
+
     if not title:
+        if non_interactive:
+            console.print("[red]❌ --title requis en mode non-interactif[/red]")
+            sys.exit(2)
         title = click.prompt("📝 Titre du message")
     if not message:
+        if non_interactive:
+            console.print("[red]❌ --message requis en mode non-interactif[/red]")
+            sys.exit(2)
         message = click.prompt("✉️  Votre message")
 
     if not message.strip():
         console.print("[yellow]Message vide, annulé.[/yellow]")
-        return
+        sys.exit(2)
 
-    console.print(f"\n[bold]Récapitulatif[/bold]")
-    console.print(f"  Ticket  : {code_or_id}")
-    console.print(f"  Titre   : {title}")
-    console.print(f"  Message : {message[:80]}{'…' if len(message) > 80 else ''}")
+    if not non_interactive:
+        console.print(f"\n[bold]Récapitulatif[/bold]")
+        console.print(f"  Ticket  : {code_or_id}")
+        console.print(f"  Titre   : {title}")
+        console.print(f"  Message : {message[:80]}{'…' if len(message) > 80 else ''}")
 
-    if not click.confirm("\nEnvoyer ce message ?", default=True):
-        console.print("[yellow]Annulé.[/yellow]")
-        return
+        if not click.confirm("\nEnvoyer ce message ?", default=True):
+            console.print("[yellow]Annulé.[/yellow]")
+            return
 
     portal = PortalClient()
     ticket_id = _resolve_id(portal, code_or_id)
@@ -371,11 +421,17 @@ def reply(code_or_id, title, message):
     with console.status("Envoi du message..."):
         try:
             msg = portal.add_message(ticket_id, title=title, body=message)
-        except (AuthError, APIError) as e:
-            console.print(f"[red]❌ {e}[/red]")
+        except (AuthError, APIError, ConfigError) as e:
+            if json_out:
+                _emit_error_json(e)
+            else:
+                _print_error_human(e)
             sys.exit(1)
 
-    console.print(f"[green]✅ Message envoyé[/green] (ID: {msg.id or 'N/A'})")
+    if json_out:
+        print(json.dumps({"ok": True, "message_id": msg.id, "ticket": code_or_id}, ensure_ascii=False))
+    else:
+        console.print(f"[green]✅ Message envoyé[/green] (ID: {msg.id or 'N/A'})")
 
 
 # ── export ────────────────────────────────────────────────────────────────
@@ -391,8 +447,8 @@ def export(code_or_id, fmt):
     with console.status(f"Chargement du ticket {code_or_id}..."):
         try:
             ticket = portal.get_ticket(ticket_id)
-        except (AuthError, APIError) as e:
-            console.print(f"[red]❌ {e}[/red]")
+        except (AuthError, APIError, ConfigError) as e:
+            _print_error_human(e)
             sys.exit(1)
 
     click.echo(format_ticket_export(ticket, fmt))
@@ -404,36 +460,60 @@ def export(code_or_id, fmt):
 @click.option("--all", "sync_all", is_flag=True, help="Tous les tickets (pas seulement les nouveautés)")
 @click.option("--closed", is_flag=True, help="Inclure les tickets clos")
 @click.option("--dry-run",  is_flag=True, help="Simuler sans rien marquer")
-def sync(sync_all, closed, dry_run):
+@click.option("--json-output", "json_out", is_flag=True, help="Sortie JSON brut")
+def sync(sync_all, closed, dry_run, json_out):
     """🔄 Détecter les nouveaux tickets et mettre à jour l'état local."""
     portal = PortalClient()
 
-    if dry_run:
+    if dry_run and not json_out:
         console.print("[yellow]⚠ Mode DRY-RUN — simulation uniquement[/yellow]")
 
     # 1. Récupérer les tickets
-    with console.status("Récupération des tickets..."):
-        try:
+    try:
+        if json_out:
             all_tickets = portal.list_tickets(include_closed=True, limit=50, fetch_all=True)
-        except (AuthError, APIError) as e:
-            console.print(f"[red]❌ {e}[/red]")
-            sys.exit(1)
+        else:
+            with console.status("Récupération des tickets..."):
+                all_tickets = portal.list_tickets(include_closed=True, limit=50, fetch_all=True)
+    except (AuthError, APIError, ConfigError) as e:
+        if json_out:
+            _emit_error_json(e)
+        else:
+            _print_error_human(e)
+        sys.exit(1)
 
-    console.print(f"  → {len(all_tickets)} ticket(s) récupéré(s)")
+    if not json_out:
+        console.print(f"  → {len(all_tickets)} ticket(s) récupéré(s)")
 
     # 2. Filtrer nouveaux/modifiés
     if sync_all:
         to_sync = all_tickets
-        console.print("  → Traitement de tous les tickets")
+        if not json_out:
+            console.print("  → Traitement de tous les tickets")
     else:
         to_sync = portal.get_new_or_updated(all_tickets)
-        console.print(f"  → {len(to_sync)} nouveau(x)/modifié(s) depuis la dernière synchro")
+        if not json_out:
+            console.print(f"  → {len(to_sync)} nouveau(x)/modifié(s) depuis la dernière synchro")
 
     if not to_sync:
-        console.print("[green]✅ Tout est à jour, rien à synchroniser.[/green]")
+        if json_out:
+            print(json.dumps({"ok": True, "synced": 0, "dry_run": dry_run, "tickets": []}, ensure_ascii=False))
+        else:
+            console.print("[green]✅ Tout est à jour, rien à synchroniser.[/green]")
         return
 
-    # 3. Tableau récap
+    if json_out:
+        if not dry_run:
+            portal.mark_synced(to_sync)
+        print(json.dumps({
+            "ok": True,
+            "synced": 0 if dry_run else len(to_sync),
+            "dry_run": dry_run,
+            "tickets": [t.to_dict() for t in to_sync],
+        }, ensure_ascii=False))
+        return
+
+    # 3. Tableau récap (mode interactif)
     table = Table(box=box.SIMPLE, header_style="bold cyan")
     table.add_column("Référence", width=16)
     table.add_column("Statut",    width=18)
@@ -455,34 +535,194 @@ def sync(sync_all, closed, dry_run):
 # ── status ────────────────────────────────────────────────────────────────
 
 @cli.command()
-def status():
+@click.option("--json-output", "json_out", is_flag=True, help="Sortie JSON brut")
+def status(json_out):
     """🔗 Vérifier la connexion et l'état du compte."""
     portal = PortalClient()
 
-    with console.status("Connexion au portail IRIS..."):
-        try:
+    try:
+        if json_out:
             account = portal.get_account()
-        except (AuthError, APIError) as e:
-            console.print(f"[red]❌ {e}[/red]")
-            sys.exit(1)
+            tickets = portal.list_tickets(limit=100)
+        else:
+            with console.status("Connexion au portail IRIS..."):
+                account = portal.get_account()
+            with console.status("Comptage des tickets..."):
+                tickets = portal.list_tickets(limit=100)
+    except (AuthError, APIError, ConfigError) as e:
+        if json_out:
+            _emit_error_json(e)
+        else:
+            _print_error_human(e)
+        sys.exit(1)
+
+    by_status: dict[str, int] = {}
+    for t in tickets:
+        by_status[t.status] = by_status.get(t.status, 0) + 1
+
+    if json_out:
+        print(json.dumps({
+            "ok": True,
+            "account": {
+                "email": account.get("email"),
+                "status": account.get("status", {}).get("label"),
+                "last_login": account.get("lastLogin"),
+            },
+            "open_tickets": len(tickets),
+            "by_status": by_status,
+        }, ensure_ascii=False))
+        return
 
     console.print("[green]✅ Connexion réussie[/green]")
     console.print(f"  Email    : {account.get('email', '—')}")
     console.print(f"  Statut   : {account.get('status', {}).get('label', '—')}")
     console.print(f"  Dernière connexion : {account.get('lastLogin', '—')}")
 
-    # Compter les tickets ouverts
-    with console.status("Comptage des tickets..."):
-        tickets = portal.list_tickets(limit=100)
-
-    by_status = {}
-    for t in tickets:
-        by_status[t.status] = by_status.get(t.status, 0) + 1
-
     console.print(f"\n  [bold]Tickets ouverts : {len(tickets)}[/bold]")
     for st, count in sorted(by_status.items(), key=lambda x: -x[1]):
         style = _status_style(st)
         console.print(f"    [{style}]{st}[/{style}] : {count}")
+
+
+# ── login / logout ────────────────────────────────────────────────────────
+
+def _resolve_env_path() -> Path:
+    """Localise le fichier .env utilisé par l'application.
+
+    Priorité : SESAM_HOME/run/.env, ~/.sesam/home → <home>/run/.env, sinon
+    ./run/.env relatif au script.
+    """
+    sesam_home = os.getenv("SESAM_HOME")
+    if sesam_home:
+        p = Path(sesam_home) / "run" / ".env"
+        if p.parent.exists():
+            return p
+
+    home_marker = Path.home() / ".sesam" / "home"
+    if home_marker.exists():
+        h = home_marker.read_text(encoding="utf-8").strip()
+        if h:
+            p = Path(h) / "run" / ".env"
+            if p.parent.exists():
+                return p
+
+    return Path(__file__).resolve().parent / "run" / ".env"
+
+
+def _resolve_state_path() -> Path:
+    """Localise le fichier .sesam_state.json en se basant sur STATE_FILE."""
+    state_file = os.getenv("STATE_FILE", ".sesam_state.json")
+    p = Path(state_file)
+    if p.is_absolute():
+        return p
+    # Relatif au répertoire du projet (parent du .env)
+    return _resolve_env_path().parent.parent / state_file
+
+
+def _write_env_var(env_path: Path, key: str, value: str) -> None:
+    """Met à jour ou ajoute une variable dans un fichier .env."""
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    lines: list[str] = []
+    if env_path.exists():
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+
+    escaped = value.replace("'", "'\\''")
+    new_line = f"{key}='{escaped}'"
+
+    found = False
+    for i, line in enumerate(lines):
+        if line.startswith(f"{key}="):
+            lines[i] = new_line
+            found = True
+            break
+    if not found:
+        lines.append(new_line)
+
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@cli.command()
+def login():
+    """🔐 Configurer ou mettre à jour les identifiants Portail IRIS."""
+    env_path = _resolve_env_path()
+
+    if not env_path.parent.exists():
+        console.print(f"[red]❌ Dossier d'installation introuvable : {env_path.parent}[/red]")
+        console.print("  Lancez d'abord [cyan]./install.sh[/cyan] depuis le projet.")
+        sys.exit(1)
+
+    # Afficher l'utilisateur courant s'il existe
+    current_user = os.getenv("SESAM_USERNAME", "")
+    if current_user:
+        console.print(f"[dim]Utilisateur actuel : {current_user}[/dim]")
+        console.print("[dim](laissez vide pour conserver le même)[/dim]\n")
+
+    username = click.prompt("Identifiant", default=current_user or None, show_default=bool(current_user))
+    if not username:
+        console.print("[yellow]Annulé.[/yellow]")
+        sys.exit(2)
+
+    password = getpass.getpass("Mot de passe : ")
+    if not password:
+        console.print("[yellow]Annulé.[/yellow]")
+        sys.exit(2)
+
+    # Test de connexion
+    with console.status("Vérification des identifiants..."):
+        try:
+            r = requests.post(
+                f"{PORTAL_BASE_URL}/api/authenticate",
+                json={"username": username, "password": password, "rememberMe": True},
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
+                timeout=15,
+            )
+        except requests.RequestException as e:
+            console.print(f"[red]❌ Impossible de joindre le portail :[/red] {e}")
+            sys.exit(1)
+
+    if r.status_code == 401:
+        console.print("[red]❌ Identifiants incorrects.[/red]")
+        sys.exit(1)
+    if r.status_code != 200:
+        console.print(f"[red]❌ Erreur inattendue (HTTP {r.status_code}).[/red]")
+        sys.exit(1)
+
+    console.print("[green]✅ Connexion réussie.[/green]")
+
+    # Écriture du .env
+    _write_env_var(env_path, "SESAM_USERNAME", username)
+    _write_env_var(env_path, "SESAM_PASSWORD", password)
+    console.print(f"  Identifiants enregistrés dans [cyan]{env_path}[/cyan]")
+
+    # Purger l'ancien état (cookies/session de l'utilisateur précédent)
+    state_path = _resolve_state_path()
+    if state_path.exists():
+        try:
+            state_path.unlink()
+            console.print(f"  Session précédente purgée ([dim]{state_path.name}[/dim])")
+        except OSError as e:
+            console.print(f"[yellow]⚠ Impossible de supprimer {state_path} : {e}[/yellow]")
+
+    console.print(f"\n[green]Vous êtes connecté en tant que [bold]{username}[/bold].[/green]")
+
+
+@cli.command()
+def logout():
+    """🚪 Déconnecter (supprime les cookies de session, conserve les identifiants)."""
+    state_path = _resolve_state_path()
+
+    if not state_path.exists():
+        console.print("[yellow]Aucune session active.[/yellow]")
+        return
+
+    try:
+        state_path.unlink()
+    except OSError as e:
+        console.print(f"[red]❌ Impossible de supprimer {state_path} :[/red] {e}")
+        sys.exit(1)
+
+    console.print(f"[green]✅ Session supprimée[/green] ({state_path})")
+    console.print("[dim]Les identifiants sont conservés. Lancez `sesam login` pour les changer.[/dim]")
 
 
 # ── Entrée principale ─────────────────────────────────────────────────────

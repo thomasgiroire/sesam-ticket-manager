@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+#
+# sesam — Wrapper CLI global pour SESAM Ticket Manager
+#
+# Ce script résout l'emplacement d'installation du projet, active le
+# virtualenv `run/.venv` et invoque `main.py` avec les arguments passés.
+#
+# Résolution de SESAM_HOME, dans l'ordre :
+#   1. Variable d'environnement $SESAM_HOME (override explicite)
+#   2. Fichier ~/.sesam/home (écrit par install.sh)
+#   3. Répertoire parent de ce script (cas où on lance bin/sesam directement)
+
+set -e
+
+resolve_home() {
+  if [[ -n "${SESAM_HOME:-}" && -f "$SESAM_HOME/main.py" ]]; then
+    echo "$SESAM_HOME"
+    return 0
+  fi
+
+  if [[ -f "$HOME/.sesam/home" ]]; then
+    local _h
+    _h=$(tr -d '[:space:]' < "$HOME/.sesam/home")
+    if [[ -n "$_h" && -f "$_h/main.py" ]]; then
+      echo "$_h"
+      return 0
+    fi
+  fi
+
+  # Fallback : dossier parent du script (cas dev ou symlink direct)
+  local _self _dir
+  _self="${BASH_SOURCE[0]}"
+  while [[ -L "$_self" ]]; do
+    _dir="$(cd "$(dirname "$_self")" && pwd)"
+    _self="$(readlink "$_self")"
+    [[ "$_self" != /* ]] && _self="$_dir/$_self"
+  done
+  _dir="$(cd "$(dirname "$_self")/.." && pwd)"
+  if [[ -f "$_dir/main.py" ]]; then
+    echo "$_dir"
+    return 0
+  fi
+
+  echo ""
+  return 1
+}
+
+SESAM_HOME_RESOLVED=$(resolve_home || true)
+
+if [[ -z "$SESAM_HOME_RESOLVED" ]]; then
+  echo "Erreur : impossible de localiser l'installation SESAM Ticket Manager." >&2
+  echo "  Définissez SESAM_HOME ou relancez ./install.sh depuis le projet." >&2
+  exit 1
+fi
+
+VENV_PY="$SESAM_HOME_RESOLVED/run/.venv/bin/python"
+if [[ ! -x "$VENV_PY" ]]; then
+  echo "Erreur : virtualenv introuvable à $VENV_PY" >&2
+  echo "  Lancez ./install.sh depuis $SESAM_HOME_RESOLVED" >&2
+  exit 1
+fi
+
+# Charger run/.env si présent (pour SESAM_USERNAME/PASSWORD/STATE_FILE, etc.)
+ENV_FILE="$SESAM_HOME_RESOLVED/run/.env"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
+
+# Exécuter la CLI ; cd dans le projet pour les chemins relatifs (logo, state…)
+cd "$SESAM_HOME_RESOLVED"
+exec "$VENV_PY" main.py "$@"

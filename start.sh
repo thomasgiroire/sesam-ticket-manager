@@ -45,11 +45,30 @@ if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
         _REQ_BEFORE=$(md5 -q "$SCRIPT_DIR/requirements.txt" 2>/dev/null \
                       || md5sum "$SCRIPT_DIR/requirements.txt" 2>/dev/null | awk '{print $1}')
 
-        # Copier les fichiers applicatifs (pas run/, install.sh, start.sh, docs/)
+        # Copier les fichiers applicatifs (pas run/, install.sh, docs/)
         cp "$_TMP_DIR/extracted"/*.py            "$SCRIPT_DIR/"
         cp "$_TMP_DIR/extracted/requirements.txt" "$SCRIPT_DIR/"
         cp -r "$_TMP_DIR/extracted/templates"    "$SCRIPT_DIR/"
         cp -r "$_TMP_DIR/extracted/static"       "$SCRIPT_DIR/"
+        if [[ -d "$_TMP_DIR/extracted/bin" ]]; then
+          mkdir -p "$SCRIPT_DIR/bin"
+          cp -R "$_TMP_DIR/extracted/bin/." "$SCRIPT_DIR/bin/"
+          chmod +x "$SCRIPT_DIR/bin/"* 2>/dev/null || true
+        fi
+
+        # Mise à jour de start.sh — avec validation syntaxique pour
+        # éviter de remplacer par un script cassé. L'ancien est conservé
+        # en start.sh.bak en cas de rollback manuel nécessaire.
+        if [[ -f "$_TMP_DIR/extracted/start.sh" ]]; then
+          if bash -n "$_TMP_DIR/extracted/start.sh" 2>/dev/null; then
+            cp "$SCRIPT_DIR/start.sh" "$SCRIPT_DIR/start.sh.bak" 2>/dev/null || true
+            cp "$_TMP_DIR/extracted/start.sh" "$SCRIPT_DIR/start.sh"
+            chmod +x "$SCRIPT_DIR/start.sh" 2>/dev/null || true
+            echo -e "${CYAN}→ start.sh mis à jour (ancien sauvegardé en start.sh.bak)${RESET}"
+          else
+            echo -e "${YELLOW}⚠ Nouveau start.sh invalide — conservation de la version actuelle.${RESET}"
+          fi
+        fi
 
         _REQ_AFTER=$(md5 -q "$SCRIPT_DIR/requirements.txt" 2>/dev/null \
                      || md5sum "$SCRIPT_DIR/requirements.txt" 2>/dev/null | awk '{print $1}')
@@ -68,6 +87,45 @@ if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
 
       rm -rf "$_TMP_DIR"
     fi
+  fi
+fi
+
+# ─── Migration silencieuse : commandes globales 'sesam' et 'sesam-ui' ────────
+# Pour les utilisateurs déjà installés (avant l'ajout du dossier bin/) :
+# on crée best-effort le marqueur ~/.sesam/home et les symlinks globaux, à
+# condition que rien n'existe déjà à la cible (pour ne pas écraser un autre
+# outil nommé `sesam`).
+if [[ -x "$SCRIPT_DIR/bin/sesam" ]]; then
+  # Marqueur ~/.sesam/home (toujours sûr — fichier qui nous appartient)
+  if [[ ! -f "$HOME/.sesam/home" ]]; then
+    mkdir -p "$HOME/.sesam" 2>/dev/null
+    echo "$SCRIPT_DIR" > "$HOME/.sesam/home" 2>/dev/null && \
+      echo -e "${CYAN}→ Marqueur d'installation enregistré (~/.sesam/home)${RESET}"
+  fi
+
+  # Symlinks /usr/local/bin (Intel), /opt/homebrew/bin (Apple Silicon),
+  # ou fallback ~/.local/bin si nécessaire
+  _migrate_target_dir=""
+  for d in /usr/local/bin /opt/homebrew/bin; do
+    if [[ -d "$d" && -w "$d" ]]; then
+      _migrate_target_dir="$d"
+      break
+    fi
+  done
+  if [[ -z "$_migrate_target_dir" && -d "$HOME/.local/bin" ]]; then
+    _migrate_target_dir="$HOME/.local/bin"
+  fi
+
+  if [[ -n "$_migrate_target_dir" ]]; then
+    for _name in sesam sesam-ui; do
+      _target="$_migrate_target_dir/$_name"
+      _src="$SCRIPT_DIR/bin/$_name"
+      if [[ -x "$_src" && ! -e "$_target" && ! -L "$_target" ]]; then
+        if ln -s "$_src" "$_target" 2>/dev/null; then
+          echo -e "${GREEN}✓ Commande globale installée : $_target${RESET}"
+        fi
+      fi
+    done
   fi
 fi
 
@@ -130,6 +188,21 @@ fi
 if [[ ! -f "$RUN_DIR/.env" || ! -d "$RUN_DIR/.venv" ]]; then
   echo "Erreur : run/ non initialisé. Lance d'abord : ./install.sh"
   exit 1
+fi
+
+# Vérifier que l'interpréteur Python du venv est toujours valide
+_VENV_PYTHON=$(head -1 "$RUN_DIR/.venv/bin/uvicorn" 2>/dev/null | sed 's/^#!//')
+if [[ -n "$_VENV_PYTHON" && ! -x "$_VENV_PYTHON" ]]; then
+  echo -e "${YELLOW}⚠ L'interpréteur Python du venv est introuvable ($_VENV_PYTHON).${RESET}"
+  echo -e "${CYAN}→ Reconstruction du virtualenv avec $(python3 --version 2>&1)...${RESET}"
+  rm -rf "$RUN_DIR/.venv"
+  if ! python3 -m venv "$RUN_DIR/.venv"; then
+    echo "Erreur : impossible de créer le virtualenv. Vérifie que python3 est installé."
+    exit 1
+  fi
+  echo -e "${CYAN}→ Installation des dépendances...${RESET}"
+  "$RUN_DIR/.venv/bin/pip" install -r "$SCRIPT_DIR/requirements.txt" --quiet
+  echo -e "${GREEN}✓ Virtualenv reconstruit avec succès.${RESET}"
 fi
 
 # Lire le PORT depuis run/.env (défaut : 8473)

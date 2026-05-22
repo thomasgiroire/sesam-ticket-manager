@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+#
+# sesam-ui — Lance l'interface web de SESAM Ticket Manager
+#
+# Wrapper qui résout l'emplacement d'installation et délègue à start.sh.
+# Voir bin/sesam pour la logique de résolution.
+
+set -e
+
+resolve_home() {
+  if [[ -n "${SESAM_HOME:-}" && -f "$SESAM_HOME/start.sh" ]]; then
+    echo "$SESAM_HOME"
+    return 0
+  fi
+
+  if [[ -f "$HOME/.sesam/home" ]]; then
+    local _h
+    _h=$(tr -d '[:space:]' < "$HOME/.sesam/home")
+    if [[ -n "$_h" && -f "$_h/start.sh" ]]; then
+      echo "$_h"
+      return 0
+    fi
+  fi
+
+  local _self _dir
+  _self="${BASH_SOURCE[0]}"
+  while [[ -L "$_self" ]]; do
+    _dir="$(cd "$(dirname "$_self")" && pwd)"
+    _self="$(readlink "$_self")"
+    [[ "$_self" != /* ]] && _self="$_dir/$_self"
+  done
+  _dir="$(cd "$(dirname "$_self")/.." && pwd)"
+  if [[ -f "$_dir/start.sh" ]]; then
+    echo "$_dir"
+    return 0
+  fi
+
+  echo ""
+  return 1
+}
+
+SESAM_HOME_RESOLVED=$(resolve_home || true)
+
+if [[ -z "$SESAM_HOME_RESOLVED" ]]; then
+  echo "Erreur : impossible de localiser l'installation SESAM Ticket Manager." >&2
+  echo "  Définissez SESAM_HOME ou relancez ./install.sh depuis le projet." >&2
+  exit 1
+fi
+
+exec "$SESAM_HOME_RESOLVED/start.sh" "$@"
