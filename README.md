@@ -44,6 +44,14 @@ sesam-ui          # depuis n'importe quel terminal
 
 L'app s'ouvre automatiquement dans votre navigateur sur `http://localhost:8473`
 
+### Désinstallation
+
+```bash
+./uninstall.sh
+```
+
+Supprime les commandes globales (`sesam`, `sesam-ui`), le virtualenv (`run/`), et le fichier de localisation (`~/.sesam/home`). Le code source est conservé.
+
 ---
 
 ## 📖 Documentation
