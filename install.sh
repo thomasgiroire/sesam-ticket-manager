@@ -36,7 +36,8 @@ ask() {
 read_secret() {
   local _varname="$1" _secret_val
   printf "  %s: " "$2" >&2
-  read -r _secret_val
+  read -rs _secret_val
+  printf "\n" >&2
   eval "${_varname}=\${_secret_val}"
 }
 
