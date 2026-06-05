@@ -37,8 +37,13 @@ if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
     _LOCAL_SHA=""
     [[ -f "$_VERSION_FILE" ]] && _LOCAL_SHA=$(cat "$_VERSION_FILE" | tr -d '[:space:]')
 
+    _INSTALLED_VERSION_FILE="$RUN_DIR/.installed_version"
     _LOCAL_VER="?"
-    [[ -f "$_LOCAL_VERSION_FILE" ]] && _LOCAL_VER=$(tr -d '[:space:]' < "$_LOCAL_VERSION_FILE")
+    if [[ -f "$_INSTALLED_VERSION_FILE" ]]; then
+      _LOCAL_VER=$(tr -d '[:space:]' < "$_INSTALLED_VERSION_FILE")
+    elif [[ -f "$_LOCAL_VERSION_FILE" ]]; then
+      _LOCAL_VER=$(tr -d '[:space:]' < "$_LOCAL_VERSION_FILE")
+    fi
 
     if [[ "$_LOCAL_SHA" == "$_REMOTE_SHA" ]]; then
       echo -e "${GREEN}✓ v${_LOCAL_VER} — à jour.${RESET}"
@@ -88,6 +93,7 @@ if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
         fi
 
         echo "$_REMOTE_SHA" > "$_VERSION_FILE"
+        echo "$_REMOTE_VER" > "$_INSTALLED_VERSION_FILE"
         echo -e "${GREEN}✓ v${_REMOTE_VER} installée.${RESET}"
       else
         echo -e "${YELLOW}⚠ Téléchargement échoué. Démarrage avec v${_LOCAL_VER}.${RESET}"

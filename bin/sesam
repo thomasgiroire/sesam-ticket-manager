@@ -92,8 +92,15 @@ if [[ "$_should_check" == true ]] && command -v curl &>/dev/null; then
     _LOCAL_SHA=""
     [[ -f "$_VERSION_FILE" ]] && _LOCAL_SHA=$(tr -d '[:space:]' < "$_VERSION_FILE")
 
+    # Lire la version INSTALLÉE (pas le fichier VERSION du repo, qui peut être
+    # mis à jour par git pull avant que la release soit installée)
+    _INSTALLED_VERSION_FILE="$SESAM_HOME_RESOLVED/run/.installed_version"
     _LOCAL_VER="?"
-    [[ -f "$_LOCAL_VERSION_FILE" ]] && _LOCAL_VER=$(tr -d '[:space:]' < "$_LOCAL_VERSION_FILE")
+    if [[ -f "$_INSTALLED_VERSION_FILE" ]]; then
+      _LOCAL_VER=$(tr -d '[:space:]' < "$_INSTALLED_VERSION_FILE")
+    elif [[ -f "$_LOCAL_VERSION_FILE" ]]; then
+      _LOCAL_VER=$(tr -d '[:space:]' < "$_LOCAL_VERSION_FILE")
+    fi
 
     if [[ "$_LOCAL_SHA" != "$_REMOTE_SHA" ]]; then
       echo "→ Mise à jour disponible, téléchargement..." >&2
@@ -137,6 +144,7 @@ if [[ "$_should_check" == true ]] && command -v curl &>/dev/null; then
         fi
 
         echo "$_REMOTE_SHA" > "$_VERSION_FILE"
+        echo "$_REMOTE_VER" > "$_INSTALLED_VERSION_FILE"
         echo "✓ v${_REMOTE_VER} installée." >&2
       else
         echo "⚠ Mise à jour échouée, poursuite avec v${_LOCAL_VER}." >&2
