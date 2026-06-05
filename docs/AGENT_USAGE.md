@@ -170,6 +170,58 @@ sesam list --refresh --json-output
 `sesam sync --json-output` est recommandé en début de session — il peuple le cache
 complet (tickets clos en permanent) sans surcharger le portail.
 
+## Stratégie d'accès aux données : JSON direct vs search
+
+L'agent peut accéder aux données de deux façons. Le bon choix dépend du volume.
+
+**Règle simple :**
+
+| Volume de données | Approche recommandée |
+|---|---|
+| < ~200 tickets (état normal) | Lire le JSON complet via `sesam list --json-output` |
+| > 500 tickets ou requêtes répétées en boucle | Filtrer en amont avec les flags CLI |
+
+**Pourquoi :** charger tout le JSON en contexte est plus simple (zéro code de
+search, zéro faux négatif) et pas plus coûteux en tokens tant que les données
+tiennent dans la fenêtre. La search devient rentable uniquement quand le JSON
+est volumineux ou que l'agent tourne en boucle sur de nombreux appels.
+
+**Cas 1 — JSON direct (recommandé pour la majorité des usages)**
+
+```bash
+# Charger tous les tickets ouverts d'un coup
+sesam list --open-only --json-output
+```
+
+L'agent lit la sortie complète et filtre lui-même par raisonnement. Aucun
+round-trip supplémentaire.
+
+**Cas 2 — Filtrage CLI (quand le volume est grand)**
+
+```bash
+# Ne charger que les incidents en attente
+sesam list --type Incident --status "En attente" --json-output
+
+# Limiter à une page
+sesam list --limit 20 --page 1 --json-output
+```
+
+Les flags réduisent la taille de la réponse avant qu'elle n'entre dans le
+contexte.
+
+**Cas 3 — Ticket spécifique (toujours préférer `show`)**
+
+Pour un ticket déjà identifié, ne jamais charger la liste entière :
+
+```bash
+sesam show 26-083-026025 --json-output
+sesam messages 26-083-026025 --json-output
+```
+
+**Note sur les tokens :** `sesam list --fetch-all` peut retourner plusieurs
+centaines de tickets. Réserver cet usage à la synchronisation initiale
+(`sesam sync`), pas à chaque question de l'utilisateur.
+
 ## Limites connues
 
 - `reply` envoie un message dès qu'il est appelé en mode `--json-output` :
