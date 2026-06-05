@@ -144,6 +144,24 @@ def _age_style(dt_str: str) -> str:
     except (ValueError, TypeError):
         return "dim"
 
+def _resolve_ticket(portal: PortalClient, code_or_id: str):
+    """
+    Résout une référence ou un ID hexadécimal en objet Ticket complet.
+    Retourne None si déjà un ID hex (pas de ticket disponible sans appel supplémentaire).
+    """
+    if "-" not in code_or_id or len(code_or_id) >= 20:
+        return None  # ID hex brut — pas d'objet ticket sans appel API supplémentaire
+
+    with console.status(f"Recherche du ticket {code_or_id}..."):
+        ticket = portal.get_ticket_by_code(code_or_id)
+
+    if ticket is None:
+        console.print(f"[red]❌ Ticket {code_or_id} introuvable.[/red]")
+        sys.exit(1)
+
+    return ticket
+
+
 def _resolve_id(portal: PortalClient, code_or_id: str) -> str:
     """
     Résout une référence ou un ID hexadécimal en ID hexadécimal interne.
@@ -154,13 +172,7 @@ def _resolve_id(portal: PortalClient, code_or_id: str) -> str:
     if "-" not in code_or_id or len(code_or_id) >= 20:
         return code_or_id  # C'est déjà un ID hex
 
-    with console.status(f"Recherche du ticket {code_or_id}..."):
-        ticket = portal.get_ticket_by_code(code_or_id)
-
-    if ticket is None:
-        console.print(f"[red]❌ Ticket {code_or_id} introuvable.[/red]")
-        sys.exit(1)
-
+    ticket = _resolve_ticket(portal, code_or_id)
     return ticket.id
 
 
@@ -218,8 +230,7 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
             console.print(f"[red]❌ Erreur API :[/red] {e}")
             sys.exit(1)
 
-    if is_first_run:
-        portal.state.update_known_tickets(tickets)
+    portal.mark_synced(tickets)
 
     # Filtres locaux
     if status:
@@ -356,7 +367,8 @@ def messages(code_or_id, limit, json_out):
       sesam messages 26-083-026025 --json-output
     """
     portal = PortalClient()
-    ticket_id = _resolve_id(portal, code_or_id)
+    ticket = _resolve_ticket(portal, code_or_id)
+    ticket_id = ticket.id if ticket else code_or_id
 
     with console.status("Chargement des messages..."):
         try:
@@ -364,6 +376,9 @@ def messages(code_or_id, limit, json_out):
         except (AuthError, APIError, ConfigError) as e:
             _print_error_human(e)
             sys.exit(1)
+
+    if ticket and not ticket.closed_at:
+        portal.mark_synced([ticket])
 
     if json_out:
         print(json.dumps([vars(m) for m in msgs], indent=2, ensure_ascii=False))
