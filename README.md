@@ -109,7 +109,7 @@ sesam logout                       # Supprimer la session locale
 sesam list                         # Lister tous les tickets
 sesam list --open-only             # Tickets ouverts uniquement
 sesam list --status "En attente"   # Filtrer par statut
-sesam list --refresh               # Forcer la mise à jour depuis le portail
+sesam list --fetch-all             # Forcer la récupération complète
 
 sesam show <ref>                   # Détail d'un ticket
 sesam messages <ref>               # Voir les messages
@@ -118,6 +118,7 @@ sesam export <ref>                 # Exporter en Markdown (par défaut) ou JSON
 
 sesam sync                         # Synchroniser l'état local
 sesam status                       # Vérifier la connexion
+sesam skill-creator                # Afficher le guide d'usage pour agents IA
 ```
 
 > `sesam login` et `sesam logout` sont **strictement interactifs**
@@ -141,6 +142,15 @@ exploitable par un script ou un agent IA. Voir [docs/AGENT_USAGE.md](docs/AGENT_
 Le tool est conçu pour être appelable par un agent type Claude depuis le
 poste de travail. La commande `sesam` est globale, non-interactive en
 mode `--json-output`, et chaque sortie est un objet JSON stable.
+
+**Pour créer un skill Claude Code (ou tout autre agent) :**
+
+```bash
+sesam skill-creator > /tmp/sesam-agent-usage.md
+```
+
+Cela génère le guide complet d'utilisation : contrat JSON, schémas des
+commandes, stratégie d'accès aux données, snippet `CLAUDE.md` prêt à coller.
 
 Exemple minimal de configuration dans un `CLAUDE.md` (ou prompt système) :
 
@@ -269,7 +279,7 @@ pytest --cov               # Coverage report
 | Symptôme | Solution |
 |--|--|
 | `401 Identifiants incorrects` | `sesam login` pour les mettre à jour |
-| Données obsolètes | `sesam list --refresh` ou `sesam sync --refresh` pour forcer l'API |
+| Données obsolètes | `sesam list --fetch-all` ou `sesam sync` pour forcer l'API |
 | Session expirée | `sesam logout` puis relancer une commande (re-auth automatique) |
 | Port 8473 déjà utilisé | `./install.sh` trouvera un port libre automatiquement |
 | L'app n'ouvre pas le navigateur | Accédez manuellement à `http://localhost:8473` |

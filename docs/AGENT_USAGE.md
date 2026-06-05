@@ -155,20 +155,24 @@ ticket sans avoir d'abord lu `sesam messages` pour comprendre le contexte.
 
 ## Cache et performance
 
-La CLI maintient un cache local partagé avec l'interface web :
+La CLI partage un cache local avec l'interface web (`.sesam_cache.json`) :
 
-- **Tickets clos** : conservés indéfiniment — zéro requête API, source stable pour l'agent
-- **Tickets ouverts** : rafraîchis toutes les 15 minutes
-- **Liste globale** : rafraîchie toutes les 5 minutes
+| Donnée | TTL | Invalidation |
+|---|---|---|
+| Liste complète des tickets | 15 min | Expiré ou `--fetch-all` |
+| Messages d'un ticket | 24 h | `updated_at` du ticket change |
 
-Pour forcer un appel API fresh, ajouter `--refresh` :
+**Première exécution** : si aucun ticket n'est encore connu, `sesam list` fait
+automatiquement un `--fetch-all` et peuple le cache complet.
+
+Pour forcer un appel API fresh sur la liste, utiliser `--fetch-all` :
 ```bash
-sesam show 26-083-026025 --refresh --json-output
-sesam list --refresh --json-output
+sesam list --fetch-all --json-output
 ```
 
-`sesam sync --json-output` est recommandé en début de session — il peuple le cache
-complet (tickets clos en permanent) sans surcharger le portail.
+`sesam sync --json-output` est recommandé en début de session — il détecte
+les nouveaux tickets et met à jour `known_tickets` sans re-fetcher les messages
+déjà en cache.
 
 ## Stratégie d'accès aux données : JSON direct vs search
 

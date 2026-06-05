@@ -326,7 +326,6 @@ def show(code_or_id, json_out):
     \b
     Exemples :
       sesam show 26-083-026025
-      sesam show 26-083-026025 --refresh
       sesam show 26-083-026025 --json-output
     """
     portal = PortalClient()
@@ -669,6 +668,24 @@ def status(json_out):
     for st, count in sorted(by_status.items(), key=lambda x: -x[1]):
         style = _status_style(st)
         console.print(f"    [{style}]{st}[/{style}] : {count}")
+
+
+# ── skill-creator ─────────────────────────────────────────────────────────
+
+@cli.command("skill-creator")
+def skill_creator():
+    """Affiche le guide d'utilisation pour agents IA (AGENT_USAGE.md).
+
+    \b
+    Exemples :
+      sesam skill-creator
+      sesam skill-creator > /tmp/sesam-agent-usage.md
+    """
+    doc = Path(__file__).parent / "docs" / "AGENT_USAGE.md"
+    if doc.exists():
+        print(doc.read_text(encoding="utf-8"))
+    else:
+        print("# SESAM Ticket Manager — Agent usage\n\nRun `sesam --help` for available commands.")
 
 
 # ── login / logout ────────────────────────────────────────────────────────
