@@ -10,6 +10,20 @@
 #
 set -euo pipefail
 
+# ─── Désinstallation ──────────────────────────────────────────────────────────
+if [[ "${1:-}" == "--uninstall" ]]; then
+  if [[ ! -f "$HOME/.sesam/home" ]]; then
+    echo "Aucune installation trouvée (~/.sesam/home absent)."
+    exit 1
+  fi
+  _install_dir=$(tr -d '[:space:]' < "$HOME/.sesam/home")
+  if [[ ! -f "$_install_dir/uninstall.sh" ]]; then
+    echo "Répertoire d'installation introuvable : $_install_dir"
+    exit 1
+  fi
+  exec bash "$_install_dir/uninstall.sh"
+fi
+
 # ─── Couleurs ─────────────────────────────────────────────────────────────────
 if [[ -t 1 ]]; then
   GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'
