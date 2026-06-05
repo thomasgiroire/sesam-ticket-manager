@@ -31,7 +31,7 @@ step() { echo ""; echo -e "${BOLD}${BLUE}$*${RESET}"; printf '%0.s─' {1..52}; 
 ask_yn() {
   local prompt="$1" default="${2:-Y}" answer
   printf "  %s [%s] " "$prompt" "$default"
-  read -r answer
+  read -r answer </dev/tty
   answer="${answer:-$default}"
   [[ "$answer" =~ ^[Yy] ]]
 }
