@@ -35,7 +35,7 @@ INCLUDE=(
   "main.py" "portal.py" "web_app.py" "config.py" "utils.py" "exceptions.py"
   "cache.py" "ticket_store.py"
   "requirements.txt" ".env.example" "README.md" "VERSION"
-  "start.sh" "install.sh" "setup.sh"
+  "start.sh" "install.sh" "uninstall.sh" "setup.sh"
   "bin/"
   "templates/" "static/"
   "docs/USER_GUIDE_WEBAPP.md" "docs/EXAMPLES.md" "docs/AGENT_USAGE.md"
