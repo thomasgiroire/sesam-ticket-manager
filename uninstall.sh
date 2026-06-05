@@ -4,7 +4,16 @@
 #
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUN_DIR="$SCRIPT_DIR/run"
+
+# Résoudre le vrai répertoire d'installation via ~/.sesam/home si disponible
+# (le script peut être lancé depuis le repo de dev, pas depuis l'install réelle)
+INSTALL_DIR="$SCRIPT_DIR"
+if [[ -f "$HOME/.sesam/home" ]]; then
+  _h=$(tr -d '[:space:]' < "$HOME/.sesam/home")
+  [[ -f "$_h/main.py" ]] && INSTALL_DIR="$_h"
+fi
+
+RUN_DIR="$INSTALL_DIR/run"
 
 # ─── Couleurs ─────────────────────────────────────────────────────────────────
 if [[ -t 1 ]]; then
@@ -46,7 +55,7 @@ for dir in "${BIN_DIRS[@]}"; do
     if [[ -L "$target" ]]; then
       resolved=$(readlink "$target")
       # Ne supprimer que les symlinks qui pointent vers ce projet
-      if [[ "$resolved" == "$SCRIPT_DIR"* ]]; then
+      if [[ "$resolved" == "$INSTALL_DIR"* ]]; then
         FOUND_SYMLINKS+=("$target")
         info "Trouvé : $target → $resolved"
       else
@@ -76,7 +85,7 @@ done
 [[ -f "$HOME/.sesam/home" ]]     && echo -e "    ${RED}✗${RESET} ~/.sesam/home"
 echo ""
 echo -e "  Ce qui sera ${BOLD}conservé${RESET} :"
-echo -e "    ${GREEN}✓${RESET} Le code source ($SCRIPT_DIR/)"
+echo -e "    ${GREEN}✓${RESET} Le code source ($INSTALL_DIR/)"
 echo ""
 
 if ! ask_yn "Confirmer la désinstallation ?" "N"; then
