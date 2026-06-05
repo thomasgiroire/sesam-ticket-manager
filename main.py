@@ -672,20 +672,29 @@ def status(json_out):
 
 # ── skill-creator ─────────────────────────────────────────────────────────
 
+_SKILL_FRONTMATTER = """\
+---
+name: sesam
+description: Manage SESAM-Vitale tickets on the Portail IRIS (GIE SESAM-Vitale) via the `sesam` CLI — list tickets, read message history, search for existing answers to conformity questions, reply to open tickets, and draft new GIE questions. Use whenever the user asks about a SESAM ticket, wants to check an open ticket, needs to reply to the GIE, wants to search for an existing conformity answer in the ticket history, mentions "Portail IRIS", "ticket GIE", or says things like "est-ce qu'on a déjà posé la question au GIE", "qu'est-ce que le GIE a répondu sur X", "envoyer une réponse au GIE", "ouvrir un ticket SESAM".
+---
+
+"""
+
+
 @cli.command("skill-creator")
 def skill_creator():
-    """Affiche le guide d'utilisation pour agents IA (AGENT_USAGE.md).
+    """Génère le skill Claude Code prêt à l'emploi (frontmatter + guide agent).
 
     \b
     Exemples :
       sesam skill-creator
-      sesam skill-creator > /tmp/sesam-agent-usage.md
+      sesam skill-creator > ~/.claude/skills/sesam/SKILL.md
     """
     doc = Path(__file__).parent / "docs" / "AGENT_USAGE.md"
-    if doc.exists():
-        print(doc.read_text(encoding="utf-8"))
-    else:
-        print("# SESAM Ticket Manager — Agent usage\n\nRun `sesam --help` for available commands.")
+    body = doc.read_text(encoding="utf-8") if doc.exists() else (
+        "# SESAM Ticket Manager — Agent usage\n\nRun `sesam --help` for available commands."
+    )
+    print(_SKILL_FRONTMATTER + body, end="")
 
 
 # ── login / logout ────────────────────────────────────────────────────────

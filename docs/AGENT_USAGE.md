@@ -76,7 +76,7 @@ et **ne pas tenter** d'invoquer `sesam login` lui-même.
 
 ## Sous-commandes
 
-### `sesam list [--open-only] [--status <s>] [--type Incident|Demande] [--limit N] [--page N] [--fetch-all] [--refresh] --json-output`
+### `sesam list [--open-only] [--status <s>] [--type Incident|Demande] [--limit N] [--page N] [--fetch-all] --json-output`
 
 Liste les tickets. Sortie : `array<Ticket>`.
 
