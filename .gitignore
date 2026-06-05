@@ -17,6 +17,7 @@ __pycache__/
 .sesam_state.json.lock
 ..sesam_state.json.lock
 .sesam_web_cache.json
+.sesam_cache.json
 
 # Tests
 .pytest_cache/
