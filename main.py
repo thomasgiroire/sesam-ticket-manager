@@ -71,47 +71,6 @@ logger = get_logger(__name__)
 console = Console()
 
 
-_logo_printed = False
-
-
-def _print_logo() -> None:
-    """Affiche logo.png en blocs Unicode via Rich, adapté à la largeur du terminal."""
-    global _logo_printed
-    if _logo_printed:
-        return
-    _logo_printed = True
-    logo_path = Path(__file__).parent / "static" / "logo.png"
-    if not logo_path.exists():
-        return
-    try:
-        from PIL import Image as PILImage
-        img = PILImage.open(logo_path).convert("RGBA")
-        width = min(80, console.width - 2)
-        aspect = img.height / img.width
-        height = int(width * aspect)
-        if height % 2 != 0:
-            height += 1
-        img = img.resize((width, height), PILImage.LANCZOS)
-        px = img.load()
-        for y in range(0, height, 2):
-            line = ""
-            for x in range(width):
-                _, _, _, a1 = px[x, y]
-                _, _, _, a2 = px[x, y + 1] if y + 1 < height else (0, 0, 0, 0)
-                top, bot = a1 > 30, a2 > 30
-                if top and bot:
-                    line += "█"
-                elif top:
-                    line += "▀"
-                elif bot:
-                    line += "▄"
-                else:
-                    line += " "
-            console.print(f"[bold white]{line}[/]")
-        console.print()
-    except Exception:
-        pass
-
 # ─── Statuts et styles ──────────────────────────────────────────────────────
 
 STATUS_STYLE = {
@@ -179,28 +138,7 @@ def _resolve_id(portal: PortalClient, code_or_id: str) -> str:
 
 # ─── Groupe CLI ──────────────────────────────────────────────────────────────
 
-class LogoGroup(click.Group):
-    @staticmethod
-    def _suppress_logo() -> bool:
-        # Pas de logo en mode JSON ni quand stdout n'est pas un TTY (pipes, agents).
-        if "--json-output" in sys.argv:
-            return True
-        if not sys.stdout.isatty():
-            return True
-        return False
-
-    def invoke(self, ctx):
-        if not self._suppress_logo():
-            _print_logo()
-        super().invoke(ctx)
-
-    def get_help(self, ctx):
-        if not self._suppress_logo():
-            _print_logo()
-        return super().get_help(ctx)
-
-
-@click.group(cls=LogoGroup)
+@click.group()
 @click.option("--verbose", "-v", is_flag=True, help="Activer le mode debug (logging détaillé)")
 def cli(verbose):
     """Portail IRIS SESAM-Vitale"""

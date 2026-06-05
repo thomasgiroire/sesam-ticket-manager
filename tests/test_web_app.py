@@ -13,9 +13,7 @@ from starlette.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import web_app
-import ticket_store
-from web_app import app, _status_color, _priority_color, _is_hot
-from ticket_store import is_client_author as _is_client_author
+from web_app import app, _status_color, _priority_color, _is_client_author, _is_hot
 from portal import PortalClient, Ticket, Message
 from exceptions import AuthError, APIError
 
@@ -80,31 +78,18 @@ def client(monkeypatch, tmp_path):
     mock_portal.add_message.return_value = None
     mock_portal.resolve_ticket.return_value = None
 
-    # Rediriger le store vers un fichier de cache de test temporaire
-    test_cache = tmp_path / ".sesam_cache_test.json"
-    monkeypatch.setattr(ticket_store._store, "_path", test_cache)
-    if ticket_store._store._mem is not None:
-        ticket_store._store._mem.clear()
-    monkeypatch.setattr(ticket_store, "last_refresh", {})
-
-    # Intercepter has_data() pour empêcher l'initial fetch au démarrage de la WebUI
-    monkeypatch.setattr(ticket_store, "has_data", lambda: True)
-
-    # Court-circuiter les appels réseau : get_all_tickets et get_enriched_messages
-    # délèguent directement au mock_portal pour que les side_effects des tests fonctionnent
-    monkeypatch.setattr(
-        ticket_store, "get_all_tickets",
-        lambda client, refresh=False: mock_portal.list_tickets(),
-    )
-    monkeypatch.setattr(
-        ticket_store, "get_enriched_messages",
-        lambda client, tid, refresh=False: mock_portal.get_enriched_messages(tid),
-    )
+    # Créer un cache disque factice récent → lifespan ne pose pas _initializing=True
+    # et la route dashboard ne déclenche pas de lazy refresh
+    fake_cache = tmp_path / ".sesam_web_cache_test.json"
+    fake_cache.write_text(json.dumps({"ts": time.time(), "data": {}}))
 
     monkeypatch.setattr(web_app, "_get_client", lambda: mock_portal)
     monkeypatch.setattr(web_app, "_initializing", False)
+    monkeypatch.setattr(web_app, "_last_refresh", {})
+    monkeypatch.setattr(web_app, "_DISK_CACHE_FILE", fake_cache)
+    web_app._mem_cache.clear()
 
-    # Neutraliser l'initial fetch async (évite os.kill en test)
+    # Neutraliser watchdog et initial fetch (évite os.kill en test)
     monkeypatch.setattr(web_app.asyncio, "create_task", lambda coro: coro.close() or None)
 
     with TestClient(app, raise_server_exceptions=False) as c:
@@ -273,16 +258,16 @@ class TestCreateTicketSubmit:
         assert r.status_code == 303
         assert r.headers["location"] == "/tickets/newticket001"
 
-    def test_success_clears_cache(self, client, monkeypatch):
+    def test_success_clears_cache(self, client):
         http, _ = client
-        calls = []
-        monkeypatch.setattr(ticket_store, "invalidate_all", lambda: calls.append(True))
+        # Pré-remplir le cache
+        web_app._mem_cache["tickets:all"] = (time.time(), [make_ticket_obj()])
         http.post(
             "/tickets/create",
             data={"titre": "Mon ticket", "description": "Détail", "priority_code": "AVERAGE"},
             follow_redirects=False,
         )
-        assert calls
+        assert "tickets:all" not in web_app._mem_cache
 
     def test_api_error_redisplays_form_422(self, client):
         http, mock_portal = client
@@ -383,33 +368,27 @@ class TestTicketReply:
         assert r.status_code == 303
         mock_portal.resolve_ticket.assert_called_once_with("abc123hex")
 
-    def test_reply_only_clears_message_cache(self, client, monkeypatch):
+    def test_reply_only_clears_message_cache(self, client):
         http, _ = client
-        inv_ticket = []
-        inv_list = []
-        inv_all = []
-        monkeypatch.setattr(ticket_store, "invalidate_ticket", lambda tid: inv_ticket.append(tid))
-        monkeypatch.setattr(ticket_store, "invalidate_list", lambda: inv_list.append(True))
-        monkeypatch.setattr(ticket_store, "invalidate_all", lambda: inv_all.append(True))
+        web_app._mem_cache["messages:abc123hex"] = (time.time(), [])
+        web_app._mem_cache["messages:other999"] = (time.time(), [])
+        web_app._mem_cache["tickets:all"] = (time.time(), [])
 
         http.post("/tickets/abc123hex/reply", data={"message": "ok"}, follow_redirects=False)
 
-        assert "abc123hex" in inv_ticket  # messages du ticket invalidés
-        assert inv_list                    # liste invalidée
-        assert not inv_all                 # purge totale pas appelée sans close
+        assert "messages:abc123hex" not in web_app._mem_cache
+        assert "messages:other999" in web_app._mem_cache   # isolation préfixe
+        assert "tickets:all" in web_app._mem_cache          # pas touché sans close
 
-    def test_reply_with_close_clears_tickets_cache(self, client, monkeypatch):
+    def test_reply_with_close_clears_tickets_cache(self, client):
         http, _ = client
-        inv_all = []
-        monkeypatch.setattr(ticket_store, "invalidate_ticket", lambda tid: None)
-        monkeypatch.setattr(ticket_store, "invalidate_list", lambda: None)
-        monkeypatch.setattr(ticket_store, "invalidate_all", lambda: inv_all.append(True))
+        web_app._mem_cache["tickets:all"] = (time.time(), [])
         http.post(
             "/tickets/abc123hex/reply",
             data={"message": "ok", "action": "close"},
             follow_redirects=False,
         )
-        assert inv_all
+        assert "tickets:all" not in web_app._mem_cache
 
     def test_auth_error_returns_503(self, client):
         http, mock_portal = client
@@ -433,12 +412,13 @@ class TestTicketResolve:
         http.post("/tickets/abc123hex/resolve", follow_redirects=False)
         mock_portal.resolve_ticket.assert_called_once_with("abc123hex")
 
-    def test_resolve_clears_both_caches(self, client, monkeypatch):
+    def test_resolve_clears_both_caches(self, client):
         http, _ = client
-        inv_all = []
-        monkeypatch.setattr(ticket_store, "invalidate_all", lambda: inv_all.append(True))
+        web_app._mem_cache["messages:abc123hex"] = (time.time(), [])
+        web_app._mem_cache["tickets:all"] = (time.time(), [])
         http.post("/tickets/abc123hex/resolve", follow_redirects=False)
-        assert inv_all
+        assert "messages:abc123hex" not in web_app._mem_cache
+        assert "tickets:all" not in web_app._mem_cache
 
     def test_auth_error_returns_503(self, client):
         http, mock_portal = client
@@ -498,30 +478,28 @@ class TestExport:
 class TestRefresh:
     def test_delta_refresh_redirects_with_count(self, client, monkeypatch):
         http, _ = client
-        monkeypatch.setattr(ticket_store, "delta_refresh", lambda c: 3)
+        monkeypatch.setattr(web_app, "_delta_refresh", lambda c: 3)
         r = http.post("/refresh", follow_redirects=False)
         assert r.status_code == 303
         assert r.headers["location"] == "/?updated=3"
 
     def test_delta_refresh_exception_clears_cache_and_redirects(self, client, monkeypatch):
         http, _ = client
-        inv_all = []
-        monkeypatch.setattr(ticket_store, "delta_refresh",
-                            lambda c: (_ for _ in ()).throw(Exception("crash")))
-        monkeypatch.setattr(ticket_store, "invalidate_all", lambda: inv_all.append(True))
+        web_app._mem_cache["tickets:all"] = (time.time(), [])
+        monkeypatch.setattr(web_app, "_delta_refresh", lambda c: (_ for _ in ()).throw(Exception("crash")))
         r = http.post("/refresh", follow_redirects=False)
         assert r.status_code == 303
         assert r.headers["location"] == "/"
-        assert inv_all
+        assert "tickets:all" not in web_app._mem_cache
 
-    def test_full_refresh_clears_cache(self, client, monkeypatch):
+    def test_full_refresh_clears_cache(self, client):
         http, _ = client
-        inv_all = []
-        monkeypatch.setattr(ticket_store, "invalidate_all", lambda: inv_all.append(True))
+        web_app._mem_cache["tickets:all"] = (time.time(), [])
+        web_app._mem_cache["messages:abc"] = (time.time(), [])
         r = http.post("/refresh/full", follow_redirects=False)
         assert r.status_code == 303
         assert r.headers["location"] == "/"
-        assert inv_all
+        assert len(web_app._mem_cache) == 0
 
 
 # ─── TestApiTickets ───────────────────────────────────────────────────────────
