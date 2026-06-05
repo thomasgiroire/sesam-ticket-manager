@@ -233,7 +233,15 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
         )
 
     console.print(table)
-    console.print(f"[dim]Page {page} · {len(tickets)} ticket(s) affiché(s)[/dim]")
+
+    nav_parts = [f"Page {page}", f"{len(tickets)} ticket(s)"]
+    if len(tickets) == limit:
+        nav_parts.append(f"[cyan]--page {page + 1}[/cyan] → page suivante")
+    if page > 1:
+        nav_parts.append(f"[cyan]--page {page - 1}[/cyan] → page précédente")
+    if not fetch_all:
+        nav_parts.append("[cyan]--fetch-all[/cyan] → tout récupérer")
+    console.print("  ".join(f"[dim]{p}[/dim]" if i == 0 else p for i, p in enumerate(nav_parts)))
 
 
 # ── show ──────────────────────────────────────────────────────────────────
