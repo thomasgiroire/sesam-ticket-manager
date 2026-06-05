@@ -36,6 +36,10 @@ ask_yn() {
   [[ "$answer" =~ ^[Yy] ]]
 }
 
+# ─── Options ──────────────────────────────────────────────────────────────────
+FORCE=false
+for _arg in "$@"; do [[ "$_arg" == "--force" ]] && FORCE=true; done
+
 # ─── Bannière ─────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}╔════════════════════════════════════════════════════╗${RESET}"
@@ -58,8 +62,11 @@ for dir in "${BIN_DIRS[@]}"; do
       if [[ "$resolved" == "$INSTALL_DIR"* ]]; then
         FOUND_SYMLINKS+=("$target")
         info "Trouvé : $target → $resolved"
+      elif [[ "$FORCE" == true ]]; then
+        FOUND_SYMLINKS+=("$target")
+        warn "Forcé : $target → $resolved"
       else
-        warn "Ignoré (pointe ailleurs) : $target → $resolved"
+        warn "Ignoré (pointe ailleurs) : $target → $resolved (--force pour supprimer quand même)"
       fi
     fi
   done
