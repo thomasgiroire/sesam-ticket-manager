@@ -21,6 +21,25 @@ depuis le répertoire d'installation et accepter l'étape « Commande globale »
 Le wrapper résout son installation via `~/.sesam/home` ou la variable
 `$SESAM_HOME`.
 
+## Démarrage de session — base de connaissances
+
+**À chaque début de session**, l'agent doit charger la totalité des tickets :
+
+```bash
+sesam list --fetch-all --json-output
+```
+
+Cette commande retourne **tous** les tickets (ouverts et clos) depuis le cache
+local. Elle constitue la **base de connaissances métier** de l'agent : historique
+des demandes, réponses du GIE, précédents de conformité.
+
+- Si le cache est chaud (< 15 min), aucune requête réseau — réponse instantanée.
+- Si le cache est froid, les tickets sont rechargés depuis le Portail IRIS et
+  mis en cache pour les prochains appels.
+
+> Ne jamais travailler uniquement sur `sesam list` (50 tickets par défaut) —
+> utiliser systématiquement `--fetch-all` pour avoir une vue complète.
+
 ## Contrat de sortie
 
 Toutes les sous-commandes utiles à un agent acceptent `--json-output`.
@@ -203,21 +222,21 @@ L'agent peut accéder aux données de deux façons. Le bon choix dépend du volu
 
 **Règle simple :**
 
-| Volume de données | Approche recommandée |
+| Situation | Approche recommandée |
 |---|---|
-| < ~200 tickets (état normal) | Lire le JSON complet via `sesam list --json-output` |
-| > 500 tickets ou requêtes répétées en boucle | Filtrer en amont avec les flags CLI |
+| Début de session / base de connaissances | `sesam list --fetch-all --json-output` |
+| Ticket spécifique déjà identifié | `sesam show <ref>` + `sesam messages <ref>` |
+| Filtrage sur volume important | Flags CLI (`--open-only`, `--status`, `--type`) |
 
-**Pourquoi :** charger tout le JSON en contexte est plus simple (zéro code de
-search, zéro faux négatif) et pas plus coûteux en tokens tant que les données
-tiennent dans la fenêtre. La search devient rentable uniquement quand le JSON
-est volumineux ou que l'agent tourne en boucle sur de nombreux appels.
+**Pourquoi `--fetch-all` par défaut :** les tickets clos contiennent les réponses
+du GIE sur les précédents de conformité — c'est la mémoire métier. Ne charger
+que les tickets ouverts revient à travailler sans historique.
 
-**Cas 1 — JSON direct (recommandé pour la majorité des usages)**
+**Cas 1 — Base de connaissances complète (recommandé)**
 
 ```bash
-# Charger tous les tickets ouverts d'un coup
-sesam list --open-only --json-output
+# Charger TOUS les tickets (ouverts + clos) — base de connaissances métier
+sesam list --fetch-all --json-output
 ```
 
 L'agent lit la sortie complète et filtre lui-même par raisonnement. Aucun
