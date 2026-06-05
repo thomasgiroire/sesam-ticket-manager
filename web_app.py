@@ -23,6 +23,13 @@ from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from cache import (
+    LocalCache,
+    serialize_tickets,
+    deserialize_tickets,
+    serialize_messages,
+    deserialize_messages,
+)
 from exceptions import AuthError, APIError
 from portal import PortalClient, Ticket
 from utils import format_ticket_export, format_iso_date, get_logger
@@ -69,111 +76,50 @@ async def favicon():
 
 # ─── Cache (mémoire + disque) ─────────────────────────────────────────────────
 
-_DISK_CACHE_FILE = Path(".sesam_web_cache.json")
 _DISK_CACHE_TTL = 3600  # 1 heure
-_MEM_CACHE_MAX = 500    # Taille maximale du cache mémoire (entrées LRU)
 _LAZY_REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", "900"))  # 15 min par défaut
 
-# Cache LRU borné : OrderedDict conserve l'ordre d'insertion/accès.
-# Format : {key: (timestamp, data)}
-_mem_cache: OrderedDict = OrderedDict()
+# Chemin du fichier cache disque — utilisé dans lifespan, lazy-refresh et monkeypatché
+# dans les tests. Doit rester un attribut module pour que monkeypatch fonctionne.
+_DISK_CACHE_FILE: Path = LocalCache.DEFAULT_PATH
+
+
+class _AppCache(LocalCache):
+    """
+    Sous-classe de LocalCache qui lit/écrit toujours via _DISK_CACHE_FILE (module global).
+    Ainsi, monkeypatch.setattr(web_app, "_DISK_CACHE_FILE", fake_cache) affecte aussi
+    les opérations disque du cache, ce qui est nécessaire pour l'isolation des tests.
+    """
+
+    def _disk_read(self) -> dict:
+        try:
+            return json.loads(_DISK_CACHE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+
+    def _disk_write(self, data: dict) -> None:
+        try:
+            tmp = _DISK_CACHE_FILE.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(_DISK_CACHE_FILE)
+        except Exception:
+            pass
+
+
+# Instance de cache partagée (web_app + CLI via .sesam_cache.json)
+_cache = _AppCache()
+
+# Alias module-niveau pour compatibilité des tests existants :
+#   web_app._mem_cache[key] = (ts, data)  ou  web_app._mem_cache.clear()
+_mem_cache: OrderedDict = _cache._mem_cache
 
 # Dernier résultat de refresh delta : liste de dicts {code, title, old_status, new_status}
 _last_refresh: dict = {}  # {timestamp, changes: list}
 
 
-def _cache_set(key: str, value: tuple):
-    """Insère ou met à jour une entrée dans le cache LRU. Évince le plus ancien si plein."""
-    if key in _mem_cache:
-        _mem_cache.move_to_end(key)
-    _mem_cache[key] = value
-    if len(_mem_cache) > _MEM_CACHE_MAX:
-        _mem_cache.popitem(last=False)  # Supprime le plus ancien (FIFO)
-
-
-def _disk_load(check_ttl: bool = True) -> dict:
-    """Load persisted cache from disk. Returns {} if missing or (if check_ttl=True) expired."""
-    try:
-        if not _DISK_CACHE_FILE.exists():
-            return {}
-        raw = json.loads(_DISK_CACHE_FILE.read_text(encoding="utf-8"))
-        if check_ttl and time.time() - raw.get("ts", 0) > _DISK_CACHE_TTL:
-            return {}
-        return raw.get("data", {})
-    except Exception:
-        return {}
-
-
-def _disk_save(data: dict):
-    """Persist cache data to disk."""
-    try:
-        _DISK_CACHE_FILE.write_text(
-            json.dumps({"ts": time.time(), "data": data}, ensure_ascii=False),
-            encoding="utf-8",
-        )
-    except Exception as e:
-        logger.warning(f"Failed to persist cache to disk: {e}")
-
-
-def _disk_invalidate():
-    """Delete the disk cache file."""
-    try:
-        _DISK_CACHE_FILE.unlink(missing_ok=True)
-    except Exception:
-        pass
-
-
-def _cached(key: str, ttl: int, fn, persist: bool = False):
-    """
-    Return cached value. Checks memory first, then disk (if persist=True), then calls fn().
-    persist=True writes to disk so the cache survives server restarts.
-    """
-    now = time.time()
-    # 1. Memory cache
-    if key in _mem_cache and now - _mem_cache[key][0] < ttl:
-        _mem_cache.move_to_end(key)
-        return _mem_cache[key][1]
-    # 2. Disk cache (for ticket list only)
-    if persist:
-        disk = _disk_load()
-        if key in disk:
-            data = _deserialize_tickets(disk[key])
-            _cache_set(key, (now, data))
-            return data
-    # 3. Fetch from portal
-    data = fn()
-    _cache_set(key, (now, data))
-    if persist:
-        disk = _disk_load() or {}
-        disk[key] = _serialize_tickets(data)
-        _disk_save(disk)
-    return data
-
-
-def _invalidate(prefix: str = ""):
-    """Clear memory cache (and disk cache if full invalidation)."""
-    keys = [k for k in _mem_cache if k.startswith(prefix)]
-    for k in keys:
-        del _mem_cache[k]
-    if not prefix:
-        _disk_invalidate()
-
-
-def _serialize_tickets(tickets) -> list:
-    """Convert Ticket objects to JSON-serializable dicts."""
-    return [t.to_dict() for t in tickets]
-
-
-def _deserialize_tickets(data: list):
-    """Reconstruct Ticket objects from dicts."""
-    result = []
-    for d in data:
-        d.pop("raw", None)
-        try:
-            result.append(Ticket(**{k: v for k, v in d.items() if k != "raw"}))
-        except Exception as e:
-            logger.warning(f"Skipping malformed ticket from cache: {e}")
-    return result
+def _invalidate(prefix: str = "") -> None:
+    """Vide le cache mémoire et disque pour les clés commençant par prefix."""
+    _cache.invalidate(prefix)
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -214,13 +160,16 @@ def _get_all_tickets(client: PortalClient):
     Le cache mémoire a une durée de vie de _DISK_CACHE_TTL secondes.
     Si le cache mémoire est vide, tente de lire le cache disque.
     En dernier recours, interroge le portail IRIS.
+    Sérialise les tickets en dicts avant stockage, désérialise à la lecture.
     """
-    return _cached(
+    raw = _cache.cached(
         "tickets:all",
         ttl=_DISK_CACHE_TTL,
-        fn=lambda: client.list_tickets(include_closed=True, fetch_all=True),
-        persist=True,
+        fn=lambda: serialize_tickets(
+            client.list_tickets(include_closed=True, fetch_all=True)
+        ),
     )
+    return deserialize_tickets(raw)
 
 
 def _get_ticket_messages(client: PortalClient, ticket_id: str):
@@ -230,11 +179,12 @@ def _get_ticket_messages(client: PortalClient, ticket_id: str):
     Utilise un cache mémoire de 30 secondes par ticket pour éviter les appels
     répétés lors du rechargement de la page détail.
     """
-    return _cached(
+    raw = _cache.cached(
         f"messages:{ticket_id}",
         ttl=30,
-        fn=lambda: client.get_enriched_messages(ticket_id),
+        fn=lambda: serialize_messages(client.get_enriched_messages(ticket_id)),
     )
+    return deserialize_messages(raw)
 
 
 def _format_date(dt_str: str) -> str:
@@ -309,9 +259,10 @@ def _enrich_gie_relance(tickets: list) -> None:
     for t in tickets:
         if _is_closed_status(t.status):
             continue
-        cached = _mem_cache.get(f"messages:{t.id}")
+        cached = _cache.peek(f"messages:{t.id}")
         if cached:
-            _, msgs = cached
+            _, raw_msgs = cached
+            msgs = deserialize_messages(raw_msgs) if raw_msgs and isinstance(raw_msgs[0], dict) else raw_msgs
             t.gie_relance = _is_gie_relance(msgs)
 
 
@@ -469,10 +420,12 @@ def _build_qual_freq() -> Counter:
     if _qual_freq_cache is not None:
         return _qual_freq_cache
     try:
-        disk = _disk_load()
-        tickets = disk.get("tickets:all", [])
+        raw = _cache.get("tickets:all", ttl=_DISK_CACHE_TTL)
+        tickets = raw if isinstance(raw, list) else []
         _qual_freq_cache = Counter(
-            t.get("qualification", "") for t in tickets if t.get("qualification")
+            t.get("qualification", "") if isinstance(t, dict) else t.qualification
+            for t in tickets
+            if (t.get("qualification") if isinstance(t, dict) else t.qualification)
         )
     except Exception:
         _qual_freq_cache = Counter()
@@ -844,20 +797,26 @@ async def ticket_reply(
         client.add_message(ticket_id, title="Réponse éditeur", body=message)
         _invalidate(f"messages:{ticket_id}")
         # Reset gie_relance immédiatement — notre réponse est maintenant le dernier message
-        cached_tickets = _mem_cache.get("tickets:all")
-        if cached_tickets:
-            ts, ticket_list = cached_tickets
-            for t in ticket_list:
-                if t.id == ticket_id:
-                    t.gie_relance = False
-                    break
-            disk_data = _disk_load() or {}
-            disk_data["tickets:all"] = _serialize_tickets(ticket_list)
-            _disk_save(disk_data)
+        cached = _cache.peek("tickets:all")
+        if cached:
+            _, raw_tickets = cached
+            # raw_tickets peut être une liste de dicts (cas normal) ou d'objets Ticket (cas test)
+            if raw_tickets and isinstance(raw_tickets[0], dict):
+                ticket_list = deserialize_tickets(raw_tickets)
+                for t in ticket_list:
+                    if t.id == ticket_id:
+                        t.gie_relance = False
+                        break
+                _cache.set("tickets:all", serialize_tickets(ticket_list))
+            else:
+                # Liste d'objets Ticket (injectés par les tests)
+                for t in raw_tickets:
+                    if hasattr(t, "id") and t.id == ticket_id:
+                        t.gie_relance = False
+                        break
         if action == "close":
             client.resolve_ticket(ticket_id)
             _invalidate("tickets:all")
-            _disk_invalidate()
     except (AuthError, APIError) as e:
         return templates.TemplateResponse(request, "error.html", {"error": str(e)}, status_code=503)
 
@@ -877,7 +836,6 @@ async def ticket_resolve(request: Request, ticket_id: str):
         client.resolve_ticket(ticket_id)
         _invalidate(f"messages:{ticket_id}")
         _invalidate("tickets:all")
-        _disk_invalidate()
     except (AuthError, APIError) as e:
         return templates.TemplateResponse(request, "error.html", {"error": str(e)}, status_code=503)
 
@@ -887,10 +845,11 @@ async def ticket_resolve(request: Request, ticket_id: str):
 def _cache_age() -> str:
     """Return human-readable age of the disk cache, or empty string if none."""
     try:
-        if not _DISK_CACHE_FILE.exists():
+        disk = _cache._disk_read()
+        tickets_entry = disk.get("tickets:all")
+        if not tickets_entry:
             return ""
-        raw = json.loads(_DISK_CACHE_FILE.read_text(encoding="utf-8"))
-        age = time.time() - raw.get("ts", 0)
+        age = time.time() - tickets_entry.get("ts", 0)
         if age < 60:
             return "il y a quelques secondes"
         if age < 3600:
@@ -927,13 +886,24 @@ def _delta_refresh(client: PortalClient) -> int:
     # On charge sans TTL : l'état précédent sert de référence de comparaison
     # quel que soit son âge. Le sync complet reste une action manuelle de l'utilisateur.
     cached_lookup: dict = {}
-    disk_data = _disk_load(check_ttl=False)
-    if "tickets:all" in disk_data:
-        for t in _deserialize_tickets(disk_data["tickets:all"]):
+    # Try memory first (without TTL check)
+    raw_cached = _cache.peek("tickets:all")
+    if raw_cached:
+        _, raw_tickets = raw_cached
+        cached_tickets = (
+            deserialize_tickets(raw_tickets)
+            if raw_tickets and isinstance(raw_tickets[0], dict)
+            else raw_tickets
+        )
+        for t in cached_tickets:
             cached_lookup[t.code] = t
-    elif "tickets:all" in _mem_cache:
-        for t in _mem_cache["tickets:all"][1]:
-            cached_lookup[t.code] = t
+    else:
+        # Try disk without TTL restriction
+        disk = _cache._disk_read()
+        disk_entry = disk.get("tickets:all")
+        if disk_entry:
+            for t in deserialize_tickets(disk_entry.get("v", [])):
+                cached_lookup[t.code] = t
 
     # Step 3 : detect changes (new ticket, status changed, or updated_at changed)
     # Les tickets déjà fermés dans le cache sont ignorés (optimisation).
@@ -963,7 +933,8 @@ def _delta_refresh(client: PortalClient) -> int:
         })
         try:
             messages = client.get_enriched_messages(t.id)
-            _cache_set(f"messages:{t.id}", (time.time(), messages))
+            # Stocker les messages sérialisés en cache mémoire (avec format (ts, data))
+            _cache._mem_put(f"messages:{t.id}", time.time(), serialize_messages(messages))
             # Calcule et persiste gie_relance depuis les messages frais
             ticket_obj = final_by_code[t.code]
             if not _is_closed_status(ticket_obj.status):
@@ -993,9 +964,8 @@ def _delta_refresh(client: PortalClient) -> int:
 
     # Step 5 : persist updated ticket list
     ticket_list = list(final_by_code.values())
-    _cache_set("tickets:all", (time.time(), ticket_list))
-    disk_data["tickets:all"] = _serialize_tickets(ticket_list)
-    _disk_save(disk_data)
+    serialized = serialize_tickets(ticket_list)
+    _cache.set("tickets:all", serialized)
 
     # Step 6 : store last refresh result for dashboard display
     _last_refresh = {

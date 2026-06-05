@@ -46,6 +46,10 @@ PORTAL_BASE_URL = os.getenv(
 from portal import PortalClient, Ticket
 from exceptions import AuthError, APIError, ConfigError
 from utils import setup_logging, get_logger, format_ticket_export
+from cache import LocalCache, serialize_tickets, deserialize_tickets, serialize_messages, deserialize_messages
+
+# Cache partagé avec la web app (même fichier .sesam_cache.json)
+_cache = LocalCache()
 
 
 def _read_version() -> str:
@@ -217,12 +221,30 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
 
     with console.status("Récupération des tickets..."):
         try:
-            tickets = portal.list_tickets(
-                include_closed=not open_only,
-                limit=limit,
-                page=page,
-                fetch_all=fetch_all,
-            )
+            if fetch_all:
+                # Fetch complet depuis l'API et mise en cache
+                fetched = portal.list_tickets(
+                    include_closed=True,
+                    fetch_all=True,
+                )
+                _cache.set("tickets:all", serialize_tickets(fetched))
+                portal.mark_synced(fetched)
+                # Appliquer les filtres localement sur la liste complète
+                tickets = fetched
+            else:
+                # Tenter le cache (TTL 15 min)
+                cached_raw = _cache.get("tickets:all", ttl=900)
+                if cached_raw is not None:
+                    tickets = deserialize_tickets(cached_raw)
+                else:
+                    # Cache miss : fetch depuis l'API
+                    fetched = portal.list_tickets(
+                        include_closed=True,
+                        fetch_all=True,
+                    )
+                    _cache.set("tickets:all", serialize_tickets(fetched))
+                    portal.mark_synced(fetched)
+                    tickets = fetched
         except AuthError as e:
             _print_error_human(e)
             sys.exit(1)
@@ -230,24 +252,30 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
             console.print(f"[red]❌ Erreur API :[/red] {e}")
             sys.exit(1)
 
-    portal.mark_synced(tickets)
-
-    # Filtres locaux
+    # Appliquer les filtres locaux
+    if open_only:
+        tickets = [t for t in tickets if not t.closed_at]
     if status:
         tickets = [t for t in tickets if status.lower() in t.status.lower()]
     if ticket_type:
         tickets = [t for t in tickets if ticket_type.lower() in t.type_ticket.lower()]
 
+    total_filtered = len(tickets)
+
+    # Pagination locale sur la liste complète filtrée
+    start = (page - 1) * limit
+    page_tickets = tickets[start:start + limit]
+
     if json_out:
-        print(json.dumps([t.to_dict() for t in tickets], indent=2, ensure_ascii=False))
+        print(json.dumps([t.to_dict() for t in page_tickets], indent=2, ensure_ascii=False))
         return
 
-    if not tickets:
+    if not page_tickets:
         console.print("[yellow]Aucun ticket trouvé.[/yellow]")
         return
 
     table = Table(
-        title=f"Tickets Portail IRIS ({len(tickets)})",
+        title=f"Tickets Portail IRIS ({len(page_tickets)}/{total_filtered})",
         box=box.ROUNDED,
         header_style="bold cyan",
         show_lines=False,
@@ -261,7 +289,7 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
     table.add_column("Mis à jour",   width=17)
     table.add_column("Créé le",      width=17)
 
-    for t in tickets:
+    for t in page_tickets:
         st_style = _status_style(t.status)
         pr_style = _priority_style(t.priority)
         age_style = _age_style(t.created_at) if not t.closed_at else "dim"
@@ -278,13 +306,12 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
 
     console.print(table)
 
-    nav_parts = [f"Page {page}", f"{len(tickets)} ticket(s)"]
-    if len(tickets) == limit:
+    has_next = start + limit < total_filtered
+    nav_parts = [f"Page {page}", f"{len(page_tickets)}/{total_filtered} ticket(s)"]
+    if has_next:
         nav_parts.append(f"[cyan]--page {page + 1}[/cyan] → page suivante")
     if page > 1:
         nav_parts.append(f"[cyan]--page {page - 1}[/cyan] → page précédente")
-    if not fetch_all:
-        nav_parts.append("[cyan]--fetch-all[/cyan] → tout récupérer")
     console.print("  ".join(f"[dim]{p}[/dim]" if i == 0 else p for i, p in enumerate(nav_parts)))
 
 
@@ -372,13 +399,24 @@ def messages(code_or_id, limit, json_out):
 
     with console.status("Chargement des messages..."):
         try:
-            msgs = portal.get_messages(ticket_id, limit=limit)
+            # Utilise le cache avec validator = updated_at du ticket pour invalider
+            # automatiquement si le ticket a été mis à jour depuis le dernier fetch.
+            validator = ticket.updated_at if ticket else None
+            cached_raw = _cache.get(f"messages:{ticket_id}", ttl=86400, validator=validator)
+            if cached_raw is not None:
+                msgs = deserialize_messages(cached_raw)
+            else:
+                msgs = portal.get_messages(ticket_id, limit=limit)
+                _cache.set(
+                    f"messages:{ticket_id}",
+                    serialize_messages(msgs),
+                    validator=validator,
+                )
+                if ticket and not ticket.closed_at:
+                    portal.mark_synced([ticket])
         except (AuthError, APIError, ConfigError) as e:
             _print_error_human(e)
             sys.exit(1)
-
-    if ticket and not ticket.closed_at:
-        portal.mark_synced([ticket])
 
     if json_out:
         print(json.dumps([vars(m) for m in msgs], indent=2, ensure_ascii=False))
