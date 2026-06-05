@@ -43,12 +43,16 @@ if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
     if [[ "$_LOCAL_SHA" == "$_REMOTE_SHA" ]]; then
       echo -e "${GREEN}✓ v${_LOCAL_VER} — à jour.${RESET}"
     else
-      _REMOTE_VER=$(curl -sL --max-time 5 "$_RELEASE_VERSION" 2>/dev/null | tr -d '[:space:]' || echo "?")
-      echo -e "${GREEN}→ Mise à jour v${_LOCAL_VER} → v${_REMOTE_VER}...${RESET}"
+      echo -e "${GREEN}→ Mise à jour disponible, téléchargement...${RESET}"
       _TMP_DIR=$(mktemp -d)
       if curl -sL --max-time 60 "$_RELEASE_ZIP" \
               -o "$_TMP_DIR/update.zip" \
           && unzip -q "$_TMP_DIR/update.zip" -d "$_TMP_DIR/extracted"; then
+
+        _REMOTE_VER="?"
+        [[ -f "$_TMP_DIR/extracted/VERSION" ]] && \
+          _REMOTE_VER=$(tr -d '[:space:]' < "$_TMP_DIR/extracted/VERSION")
+        echo -e "${GREEN}→ v${_LOCAL_VER} → v${_REMOTE_VER}...${RESET}"
 
         _REQ_BEFORE=$(md5 -q "$SCRIPT_DIR/requirements.txt" 2>/dev/null \
                       || md5sum "$SCRIPT_DIR/requirements.txt" 2>/dev/null | awk '{print $1}')

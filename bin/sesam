@@ -96,15 +96,18 @@ if [[ "$_should_check" == true ]] && command -v curl &>/dev/null; then
     [[ -f "$_LOCAL_VERSION_FILE" ]] && _LOCAL_VER=$(tr -d '[:space:]' < "$_LOCAL_VERSION_FILE")
 
     if [[ "$_LOCAL_SHA" != "$_REMOTE_SHA" ]]; then
-      # Récupérer la version distante pour l'afficher dans le message
-      _REMOTE_VER=$(curl -sL --max-time 5 "$_RELEASE_VERSION" 2>/dev/null | tr -d '[:space:]' || echo "?")
-      echo "→ Mise à jour v${_LOCAL_VER} → v${_REMOTE_VER}..." >&2
-
+      echo "→ Mise à jour disponible, téléchargement..." >&2
       _TMP_DIR=$(mktemp -d)
 
       if curl -sL --max-time 60 "$_RELEASE_ZIP" \
               -o "$_TMP_DIR/update.zip" 2>/dev/null \
           && unzip -q "$_TMP_DIR/update.zip" -d "$_TMP_DIR/extracted" 2>/dev/null; then
+
+        # Lire la version depuis le ZIP extrait (pas de fetch supplémentaire)
+        _REMOTE_VER="?"
+        [[ -f "$_TMP_DIR/extracted/VERSION" ]] && \
+          _REMOTE_VER=$(tr -d '[:space:]' < "$_TMP_DIR/extracted/VERSION")
+        echo "→ v${_LOCAL_VER} → v${_REMOTE_VER}..." >&2
 
         _REQ_BEFORE=$(md5 -q "$SESAM_HOME_RESOLVED/requirements.txt" 2>/dev/null \
                       || md5sum "$SESAM_HOME_RESOLVED/requirements.txt" 2>/dev/null | awk '{print $1}')
@@ -145,6 +148,11 @@ if [[ "$_should_check" == true ]] && command -v curl &>/dev/null; then
     # Toujours mettre à jour la date du dernier check (même si déjà à jour)
     date +%s > "$_LAST_CHECK_FILE" 2>/dev/null || true
   fi
+fi
+
+# Si --update était le seul argument, ne pas lancer main.py
+if [[ "$_FORCE_UPDATE" == true && ${#_FILTERED_ARGS[@]} -eq 0 ]]; then
+  exit 0
 fi
 
 # ─── Lancement ────────────────────────────────────────────────────────────────
