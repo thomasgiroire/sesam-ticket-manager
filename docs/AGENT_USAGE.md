@@ -212,9 +212,9 @@ Pour forcer un appel API fresh sur la liste, utiliser `--fetch-all` :
 sesam list --fetch-all --json-output
 ```
 
-`sesam sync --json-output` est recommandé en début de session — il détecte
-les nouveaux tickets et met à jour `known_tickets` sans re-fetcher les messages
-déjà en cache.
+`sesam sync --all --json-output` est recommandé en début de session — il charge
+le dataset complet (pas seulement les 50 plus récents), met à jour `known_tickets`
+et peuple le cache sans re-fetcher les messages déjà présents.
 
 ## Stratégie d'accès aux données : JSON direct vs search
 
@@ -266,7 +266,7 @@ sesam messages 26-083-026025 --json-output
 
 **Note sur les tokens :** `sesam list --fetch-all` peut retourner plusieurs
 centaines de tickets. Réserver cet usage à la synchronisation initiale
-(`sesam sync`), pas à chaque question de l'utilisateur.
+(`sesam sync --all`), pas à chaque question de l'utilisateur.
 
 ## Limites connues
 

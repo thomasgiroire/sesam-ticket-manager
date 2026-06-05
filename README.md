@@ -82,8 +82,8 @@ sesam skill-creator                # Afficher le guide d'usage pour agents IA
 
 **Cache local intelligent** : les tickets clos sont conservés indéfiniment
 (source statique pour les agents). Les tickets ouverts sont rafraîchis
-automatiquement. `sesam sync` peuple le cache — l'interface web bénéficie
-immédiatement des données sans appel API supplémentaire.
+automatiquement. `sesam sync --all` peuple le cache complet — l'interface web
+bénéficie immédiatement des données sans appel API supplémentaire.
 
 Toutes les commandes acceptent `--json-output` pour une sortie structurée,
 exploitable par un script ou un agent IA. Voir [docs/AGENT_USAGE.md](docs/AGENT_USAGE.md).
@@ -254,7 +254,7 @@ pytest --cov               # Coverage report
 | Symptôme | Solution |
 |--|--|
 | `401 Identifiants incorrects` | `sesam login` pour les mettre à jour |
-| Données obsolètes | `sesam list --fetch-all` ou `sesam sync` pour forcer l'API |
+| Données obsolètes | `sesam list --fetch-all` ou `sesam sync --all` pour forcer l'API |
 | Session expirée | `sesam logout` puis relancer une commande (re-auth automatique) |
 | Port 8473 déjà utilisé | `./install.sh` trouvera un port libre automatiquement |
 | L'app n'ouvre pas le navigateur | Accédez manuellement à `http://localhost:8473` |
