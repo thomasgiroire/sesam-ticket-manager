@@ -190,7 +190,7 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
                 fetch_all=fetch_all,
             )
         except AuthError as e:
-            console.print(f"[red]❌ Authentification :[/red] {e}")
+            _print_error_human(e)
             sys.exit(1)
         except APIError as e:
             console.print(f"[red]❌ Erreur API :[/red] {e}")
