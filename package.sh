@@ -33,8 +33,9 @@ cd "$SCRIPT_DIR"
 # Fichiers/dossiers à inclure explicitement (utilisateur final, pas dev)
 INCLUDE=(
   "main.py" "portal.py" "web_app.py" "config.py" "utils.py" "exceptions.py"
-  "requirements.txt" ".env.example" "README.md"
-  "start.sh" "install.sh"
+  "cache.py" "ticket_store.py"
+  "requirements.txt" ".env.example" "README.md" "VERSION"
+  "start.sh" "install.sh" "setup.sh"
   "bin/"
   "templates/" "static/"
   "docs/USER_GUIDE_WEBAPP.md" "docs/EXAMPLES.md" "docs/AGENT_USAGE.md"
