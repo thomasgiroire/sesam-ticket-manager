@@ -2,9 +2,6 @@
 #
 # sesam — Wrapper CLI global pour SESAM Ticket Manager
 #
-# Ce script résout l'emplacement d'installation du projet, active le
-# virtualenv `run/.venv` et invoque `main.py` avec les arguments passés.
-#
 # Résolution de SESAM_HOME, dans l'ordre :
 #   1. Variable d'environnement $SESAM_HOME (override explicite)
 #   2. Fichier ~/.sesam/home (écrit par install.sh)
@@ -27,7 +24,6 @@ resolve_home() {
     fi
   fi
 
-  # Fallback : dossier parent du script (cas dev ou symlink direct)
   local _self _dir
   _self="${BASH_SOURCE[0]}"
   while [[ -L "$_self" ]]; do
@@ -53,6 +49,95 @@ if [[ -z "$SESAM_HOME_RESOLVED" ]]; then
   exit 1
 fi
 
+# ─── Auto-update (une fois par jour, ou forcé avec --update) ─────────────────
+
+_RELEASE_SHA1="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest/sesam-ticket-manager.sha1"
+_RELEASE_ZIP="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest/sesam-ticket-manager.zip"
+_VERSION_FILE="$SESAM_HOME_RESOLVED/run/.version"
+_LAST_CHECK_FILE="$SESAM_HOME_RESOLVED/run/.last_update_check"
+_CHECK_INTERVAL=86400  # 24 heures
+
+_FORCE_UPDATE=false
+_FILTERED_ARGS=()
+for _arg in "$@"; do
+  if [[ "$_arg" == "--update" ]]; then
+    _FORCE_UPDATE=true
+  else
+    _FILTERED_ARGS+=("$_arg")
+  fi
+done
+
+_should_check=false
+if [[ "$_FORCE_UPDATE" == true ]]; then
+  _should_check=true
+elif command -v curl &>/dev/null; then
+  if [[ ! -f "$_LAST_CHECK_FILE" ]]; then
+    _should_check=true
+  else
+    _last_ts=$(cat "$_LAST_CHECK_FILE" 2>/dev/null || echo 0)
+    _now=$(date +%s)
+    if (( _now - _last_ts > _CHECK_INTERVAL )); then
+      _should_check=true
+    fi
+  fi
+fi
+
+if [[ "$_should_check" == true ]] && command -v curl &>/dev/null; then
+  _REMOTE_SHA=$(curl -sL --max-time 10 "$_RELEASE_SHA1" 2>/dev/null || true)
+
+  if [[ -n "$_REMOTE_SHA" ]]; then
+    _LOCAL_SHA=""
+    [[ -f "$_VERSION_FILE" ]] && _LOCAL_SHA=$(tr -d '[:space:]' < "$_VERSION_FILE")
+
+    if [[ "$_LOCAL_SHA" != "$_REMOTE_SHA" ]]; then
+      echo "→ Mise à jour disponible, installation..." >&2
+      _TMP_DIR=$(mktemp -d)
+
+      if curl -sL --max-time 60 "$_RELEASE_ZIP" \
+              -o "$_TMP_DIR/update.zip" 2>/dev/null \
+          && unzip -q "$_TMP_DIR/update.zip" -d "$_TMP_DIR/extracted" 2>/dev/null; then
+
+        _REQ_BEFORE=$(md5 -q "$SESAM_HOME_RESOLVED/requirements.txt" 2>/dev/null \
+                      || md5sum "$SESAM_HOME_RESOLVED/requirements.txt" 2>/dev/null | awk '{print $1}')
+
+        cp "$_TMP_DIR/extracted"/*.py            "$SESAM_HOME_RESOLVED/"
+        cp "$_TMP_DIR/extracted/requirements.txt" "$SESAM_HOME_RESOLVED/"
+        cp -r "$_TMP_DIR/extracted/templates"    "$SESAM_HOME_RESOLVED/" 2>/dev/null || true
+        cp -r "$_TMP_DIR/extracted/static"       "$SESAM_HOME_RESOLVED/" 2>/dev/null || true
+        if [[ -d "$_TMP_DIR/extracted/bin" ]]; then
+          mkdir -p "$SESAM_HOME_RESOLVED/bin"
+          cp -R "$_TMP_DIR/extracted/bin/." "$SESAM_HOME_RESOLVED/bin/"
+          chmod +x "$SESAM_HOME_RESOLVED/bin/"* 2>/dev/null || true
+        fi
+        if [[ -f "$_TMP_DIR/extracted/start.sh" ]] && bash -n "$_TMP_DIR/extracted/start.sh" 2>/dev/null; then
+          cp "$SESAM_HOME_RESOLVED/start.sh" "$SESAM_HOME_RESOLVED/start.sh.bak" 2>/dev/null || true
+          cp "$_TMP_DIR/extracted/start.sh" "$SESAM_HOME_RESOLVED/start.sh"
+          chmod +x "$SESAM_HOME_RESOLVED/start.sh" 2>/dev/null || true
+        fi
+
+        _REQ_AFTER=$(md5 -q "$SESAM_HOME_RESOLVED/requirements.txt" 2>/dev/null \
+                     || md5sum "$SESAM_HOME_RESOLVED/requirements.txt" 2>/dev/null | awk '{print $1}')
+        if [[ "$_REQ_BEFORE" != "$_REQ_AFTER" && -d "$SESAM_HOME_RESOLVED/run/.venv" ]]; then
+          echo "→ Nouvelles dépendances, installation..." >&2
+          "$SESAM_HOME_RESOLVED/run/.venv/bin/pip" install -r "$SESAM_HOME_RESOLVED/requirements.txt" --quiet
+        fi
+
+        echo "$_REMOTE_SHA" > "$_VERSION_FILE"
+        echo "✓ Application mise à jour." >&2
+      else
+        echo "⚠ Mise à jour échouée, poursuite avec la version actuelle." >&2
+      fi
+
+      rm -rf "$_TMP_DIR"
+    fi
+
+    # Toujours mettre à jour la date du dernier check (même si déjà à jour)
+    date +%s > "$_LAST_CHECK_FILE" 2>/dev/null || true
+  fi
+fi
+
+# ─── Lancement ────────────────────────────────────────────────────────────────
+
 VENV_PY="$SESAM_HOME_RESOLVED/run/.venv/bin/python"
 if [[ ! -x "$VENV_PY" ]]; then
   echo "Erreur : virtualenv introuvable à $VENV_PY" >&2
@@ -60,7 +145,6 @@ if [[ ! -x "$VENV_PY" ]]; then
   exit 1
 fi
 
-# Charger run/.env si présent (pour SESAM_USERNAME/PASSWORD/STATE_FILE, etc.)
 ENV_FILE="$SESAM_HOME_RESOLVED/run/.env"
 if [[ -f "$ENV_FILE" ]]; then
   set -a
@@ -69,6 +153,5 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
-# Exécuter la CLI ; cd dans le projet pour les chemins relatifs (logo, state…)
 cd "$SESAM_HOME_RESOLVED"
-exec "$VENV_PY" main.py "$@"
+exec "$VENV_PY" main.py "${_FILTERED_ARGS[@]}"
