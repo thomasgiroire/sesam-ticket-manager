@@ -83,5 +83,6 @@ jobs:
           sesam-ticket-manager.zip
           sesam-ticket-manager.sha1
           setup.sh
+          uninstall.sh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
