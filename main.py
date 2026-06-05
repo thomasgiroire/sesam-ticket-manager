@@ -101,6 +101,19 @@ def _priority_style(priority: str) -> str:
     return PRIORITY_STYLE.get(priority.lower(), "white")
 
 
+_MSG_LABEL = {
+    "inextranet": "Message éditeur",
+    "exextranet": "Message GIE SESAM-Vitale",
+}
+
+def _msg_label(msg) -> str:
+    """Retourne le label lisible d'un message selon son type_code."""
+    return _MSG_LABEL.get(msg.type_code.lower(), msg.type_label or msg.type_code)
+
+def _msg_is_inbound(msg) -> bool:
+    """Vrai si le message est envoyé par l'éditeur (entrant pour le GIE)."""
+    return msg.type_code.lower() == "inextranet"
+
 def _age_style(dt_str: str) -> str:
     """Retourne le style Rich selon l'ancienneté du ticket."""
     if not dt_str:
@@ -274,8 +287,8 @@ def show(code_or_id, json_out):
         for msg in ticket.messages[-3:]:  # Afficher les 3 derniers
             console.print(Panel(
                 msg.body[:500] + ("…" if len(msg.body) > 500 else ""),
-                title=f"{msg.type_label} — {msg.created_at[:16].replace('T',' ') if msg.created_at else ''}",
-                border_style="dim",
+                title=f"{_msg_label(msg)} — {msg.created_at[:16].replace('T',' ') if msg.created_at else ''}",
+                border_style="blue" if _msg_is_inbound(msg) else "dim",
             ))
 
 
@@ -310,9 +323,9 @@ def messages(code_or_id, limit, json_out):
         has_attach = f" 📎 {len(msg.attachments)} pièce(s)" if msg.attachments else ""
         console.print(Panel(
             msg.body or "[italic dim](pas de contenu)[/italic dim]",
-            title=f"[bold]{msg.type_label}[/bold] — {msg.created_at[:16].replace('T',' ') if msg.created_at else ''}{has_attach}",
+            title=f"[bold]{_msg_label(msg)}[/bold] — {msg.created_at[:16].replace('T',' ') if msg.created_at else ''}{has_attach}",
             title_align="left",
-            border_style="blue" if "entrant" in msg.type_label.lower() else "dim",
+            border_style="blue" if _msg_is_inbound(msg) else "dim",
         ))
 
 
