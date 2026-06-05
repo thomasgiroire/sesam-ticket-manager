@@ -42,51 +42,6 @@ Supprime les commandes globales (`sesam`, `sesam-ui`), le virtualenv (`run/`), e
 
 ---
 
-## 📖 Documentation
-
-### 👤 Pour les utilisateurs
-
-- **[CLI User Guide](docs/CLI_USER_GUIDE.md)** — Guide complet d'utilisation de la CLI
-  - Lister, afficher, répondre à des tickets
-  - Filtrer par statut, type, pagination
-  - Export JSON
-
-- **[Web App Guide](docs/USER_GUIDE_WEBAPP.md)** — Interface web FastAPI
-  - Architecture de la webapp
-  - Endpoints disponibles
-  - Configuration avancée
-
-- **[Agent Usage Guide](docs/AGENT_USAGE.md)** — Utiliser `sesam` depuis un agent IA
-  - Contrat de sortie JSON (`--json-output`)
-  - Schémas des commandes
-  - Snippet `CLAUDE.md` prêt à coller
-
-### 🔧 Pour les développeurs
-
-- **[API Reverse Engineering Guide](docs/API_REVERSE_ENGINEERING_GUIDE.md)** — Exploration poussée du Portail IRIS
-  - 14+ endpoints découverts et documentés
-  - Architecture Efficy 11 CRM + JHipster
-  - Exemples complets avec requêtes HTTP
-  - Quirks et limitations identifiées
-
-- **[API Reference](docs/API.md)** — Démarrage rapide API
-  - Vue d'ensemble endpoints
-  - Premiers pas d'implémentation
-  - Checklist pour ajouter un nouvel endpoint
-
-- **[Examples](docs/EXAMPLES.md)** — Exemples cURL et Python
-  - Requêtes pratiques
-  - Patterns de filtrage
-  - Solutions aux problèmes courants
-
-- **[Architecture](docs/ARCHITECTURE.md)** — Stack technique détaillée
-  - Efficy 11 CRM (backend découvert)
-  - Authentification JHipster
-  - Modèle de données
-  - Observations sécurité
-
----
-
 ## 📊 Fonctionnalités
 
 ### Interface web (`sesam-ui`)
@@ -171,6 +126,25 @@ lancer `sesam login` dans un terminal, puis réessaie.
 
 Le contrat complet (stdout JSON, stderr logs, codes de sortie, schémas)
 est documenté dans **[docs/AGENT_USAGE.md](docs/AGENT_USAGE.md)**.
+
+
+---
+
+## 📖 Documentation
+
+### 👤 Pour les utilisateurs
+
+- **[CLI User Guide](docs/CLI_USER_GUIDE.md)** — Guide complet d'utilisation de la CLI
+- **[Web App Guide](docs/USER_GUIDE_WEBAPP.md)** — Interface web FastAPI
+- **[Agent Usage Guide](docs/AGENT_USAGE.md)** — Utiliser `sesam` depuis un agent IA
+
+### 🔧 Pour les développeurs
+
+- **[API Reverse Engineering Guide](docs/API_REVERSE_ENGINEERING_GUIDE.md)** — Exploration poussée du Portail IRIS
+- **[API Reference](docs/API.md)** — Démarrage rapide API
+- **[Examples](docs/EXAMPLES.md)** — Exemples cURL et Python
+- **[Architecture](docs/ARCHITECTURE.md)** — Stack technique détaillée
+
 
 ---
 
