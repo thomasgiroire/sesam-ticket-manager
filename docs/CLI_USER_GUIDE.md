@@ -1,255 +1,216 @@
-# Portail IRIS – Gestionnaire de tickets SESAM-Vitale
+# Guide utilisateur — CLI `sesam`
 
-CLI Python pour gérer les tickets du **Portail IRIS** (support GIE SESAM-Vitale).
+La commande `sesam` permet de gérer les tickets du Portail IRIS depuis un terminal.
+Elle est disponible depuis n'importe où après l'installation (`./install.sh`).
 
 ---
 
 ## Sommaire
 
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Utilisation](#utilisation)
-- [Architecture](#architecture)
-- [API Reference](#api-reference)
+- [Authentification](#authentification)
+- [Lister les tickets](#lister-les-tickets)
+- [Détail d'un ticket](#détail-dun-ticket)
+- [Messages d'un ticket](#messages-dun-ticket)
+- [Répondre à un ticket](#répondre-à-un-ticket)
+- [Exporter un ticket](#exporter-un-ticket)
+- [Synchroniser l'état local](#synchroniser-létat-local)
+- [Vérifier la connexion](#vérifier-la-connexion)
+- [Cache local](#cache-local)
+- [Mode JSON pour les scripts](#mode-json-pour-les-scripts)
 - [Dépannage](#dépannage)
 
 ---
 
-## Installation
-
-**Prérequis :** Python 3.11+
+## Authentification
 
 ```bash
-cd sesam-ticket-manager/
-
-# Créer un environnement virtuel
-python3 -m venv .venv
-source .venv/bin/activate       # macOS / Linux
-# .venv\Scripts\activate        # Windows
-
-# Installer les dépendances
-pip install -r requirements.txt
+sesam login     # Configurer ou mettre à jour vos identifiants Portail IRIS
+sesam logout    # Supprimer la session locale (les identifiants sont conservés)
 ```
 
-Avec **uv** (plus rapide) :
-```bash
-uv venv && source .venv/bin/activate
-uv pip install -r requirements.txt
-```
+> `sesam login` est **interactif uniquement** — le mot de passe ne transite jamais
+> en argument. Utilisez-le depuis un terminal après un changement de mot de passe
+> ou une session bloquée.
 
 ---
 
-## Configuration
+## Lister les tickets
 
 ```bash
-cp .env.example .env
-```
+# Tous les tickets (ouverts + clos)
+sesam list
 
-Éditez `.env` :
-
-```env
-# ── Portail IRIS ──────────────────────────────────
-SESAM_USERNAME=votre.email@domaine.com
-SESAM_PASSWORD=votre_mot_de_passe
-```
-
-Vérifier la connexion :
-```bash
-python main.py status
-```
-
----
-
-## Utilisation
-
-### Vérifier la connexion
-
-```bash
-python main.py status
-```
-Affiche l'email connecté, le statut du compte et un résumé des tickets ouverts par statut.
-
----
-
-### Lister les tickets
-
-```bash
-# Tous les tickets ouverts (défaut : 50)
-python main.py list
-
-# Avec les tickets clos
-python main.py list --closed
+# Tickets ouverts uniquement
+sesam list --open-only
 
 # Filtrer par statut
-python main.py list --status "En attente"
-python main.py list --status "Expertise externe"
+sesam list --status "En attente"
+sesam list --status "En cours"
 
 # Filtrer par type
-python main.py list --type Incident
-python main.py list --type Demande
+sesam list --type Incident
+sesam list --type Demande
 
-# Pagination
-python main.py list --limit 100 --page 2
-
-# Export JSON brut (pour scripting)
-python main.py list --json-output > tickets.json
+# Forcer la mise à jour depuis le portail (ignore le cache)
+sesam list --refresh
 ```
 
 **Statuts disponibles :**
-`Nouveau` · `En cours` · `En attente` · `Suspendu` · `En expertise` · `Expertise externe` · `Résolu`
+`Nouveau` · `En cours` · `En attente` · `Suspendu` · `En expertise` · `Expertise externe` · `Résolu` · `Clos`
 
 ---
 
-### Détail d'un ticket
+## Détail d'un ticket
 
 ```bash
 # Par référence (format XX-YYY-NNNNNN)
-python main.py show 26-001-000001
+sesam show 26-083-026025
 
 # Par ID hexadécimal interne
-python main.py show 00000000000000ab
+sesam show 00294000001e8cbd
 
-# Export JSON
-python main.py show 26-001-000001 --json-output
+# Forcer la mise à jour depuis le portail
+sesam show 26-083-026025 --refresh
 ```
 
 Affiche : titre, statut, priorité, service, demandeur, dates, description et les 3 derniers messages.
 
 ---
 
-### Voir les messages d'un ticket
+## Messages d'un ticket
 
 ```bash
-python main.py messages 26-001-000001
-python main.py messages 26-001-000001 --limit 50
-python main.py messages 26-001-000001 --json-output
+# 20 derniers messages (défaut)
+sesam messages 26-083-026025
+
+# Changer la limite
+sesam messages 26-083-026025 --limit 50
+
+# Forcer la mise à jour depuis le portail
+sesam messages 26-083-026025 --refresh
 ```
 
-Les messages sont nettoyés (HTML → texte lisible). Types affichés : `Extranet entrant` (message du demandeur) / `Extranet sortant` (réponse du support).
+Les messages sont nettoyés (HTML → texte lisible).
+Types : `Extranet entrant` (message du demandeur) / `Extranet sortant` (réponse du support).
 
 ---
 
-### Répondre à un ticket
+## Répondre à un ticket
 
 ```bash
-# Mode interactif
-python main.py reply 26-001-000001
+# Mode interactif (prompts)
+sesam reply 26-083-026025
 
 # En une ligne
-python main.py reply 26-001-000001 \
+sesam reply 26-083-026025 \
   --title "Complément d'information" \
-  --message "Voici les logs demandés : …"
+  --message "Bonjour, voici les éléments demandés : …"
+
+# Sans confirmation (mode script)
+sesam reply 26-083-026025 \
+  --title "Suivi" \
+  --message "Avez-vous pu avancer sur ce point ?" \
+  --yes
+```
+
+> Le cache du ticket et de ses messages est automatiquement invalidé après l'envoi.
+
+---
+
+## Exporter un ticket
+
+```bash
+# Format Markdown (défaut) — idéal pour ingestion par un agent IA
+sesam export 26-083-026025
+
+# Format JSON structuré
+sesam export 26-083-026025 --format json
 ```
 
 ---
 
-## Architecture
+## Synchroniser l'état local
 
-```
-sesam-ticket-manager/
-├── main.py           # CLI Click (list, show, messages, reply, status)
-├── portal.py         # Client HTTP Portail IRIS (auth + parsing + cache)
-├── requirements.txt  # Dépendances Python
-├── .env.example      # Template de configuration
-├── .env              # ⚠ Ne pas committer
-└── .sesam_state.json # État local (session, tickets connus) — auto-généré
-```
+```bash
+# Détecter les nouveaux tickets et tickets modifiés
+sesam sync
 
-### Flux de données
+# Traiter tous les tickets (pas seulement les nouveautés)
+sesam sync --all
 
-```
-Portail IRIS (JHipster Angular 11)
-        │
-        │  POST /api/authenticate  (cookie session)
-        │  GET  /api/requests/company
-        │  GET  /api/requests/{id}
-        │  GET  /api/requests/{id}/messages?nbOfResult=N
-        │  POST /api/requests/{id}/messages
-        ▼
-   portal.py  ──── .sesam_state.json (cookies + état synchro)
+# Simuler sans modifier l'état
+sesam sync --dry-run
+
+# Forcer le rechargement complet depuis le portail
+sesam sync --refresh
 ```
 
-### Authentification
-
-Le portail utilise **JHipster** avec authentification par **cookie de session** (pas de Bearer token).
-Flux : `POST /api/authenticate` → cookies HttpOnly → réutilisés pour tous les appels suivants.
-Les cookies sont sauvegardés dans `.sesam_state.json` et réutilisés entre les sessions.
+`sesam sync` peuple également le **cache partagé** avec les tickets clos en cache permanent.
+L'interface web (`sesam-ui`) bénéficie immédiatement de ces données.
 
 ---
 
-## API Reference
+## Vérifier la connexion
 
-### Endpoints confirmés
-
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `POST` | `/api/authenticate` | Login `{username, password, rememberMe}` |
-| `GET` | `/api/account` | Infos utilisateur connecté |
-| `GET` | `/api/requests/company` | Liste des tickets société |
-| `GET` | `/api/requests/{id}` | Détail ticket (ID hex) |
-| `GET` | `/api/requests/{id}/messages` | Messages d'un ticket (`nbOfResult` sans 's') |
-| `POST` | `/api/requests/{id}/messages` | Ajouter un message `{title, description}` |
-| `GET` | `/api/requests/{id}/messages/attachments` | Pièces jointes |
-| `GET` | `/api/requests/services` | Services disponibles |
-| `GET` | `/api/requests/qualifications` | Qualifications |
-| `GET` | `/api/refvalues?tableCode=Rst` | Statuts |
-| `GET` | `/api/refvalues?tableCode=Tt_` | Types de tickets |
-
-### Structure d'un ticket
-
-```json
-{
-  "id": "00000000000000ab",
-  "code": "26-001-000001",
-  "titre": "Titre du ticket",
-  "status": { "code": "EXPEXT", "label": "Expertise externe" },
-  "priority": { "code": "AVERAGE", "label": "Normal" },
-  "typeTicket": { "code": "INCIDENT", "label": "Incident" },
-  "service": { "id": "00023000004ecba5", "qualifs": [...] },
-  "person": { "firstName": "Jean", "lastName": "DUPONT" },
-  "createdAt": "2026-03-24T14:58:51",
-  "updatedAt": "2026-03-24T17:09:46",
-  "description": "..."
-}
+```bash
+sesam status
 ```
 
-> **Note :** Le champ du titre est `titre` (français), pas `title`.
-> Le label du service n'est pas dans l'objet ticket — il est résolu via `/api/requests/services`.
+Affiche : email connecté, statut du compte, nombre de tickets ouverts par statut.
 
-### Paramètres de liste
+---
 
-| Paramètre | Description | Exemple |
-|-----------|-------------|---------|
-| `notClosed` | Masquer les clos | `true` |
-| `fromPageNumber` | Page (commence à 1) | `1` |
-| `nbOfResults` | Résultats par page | `50` |
-| `orderBy` | Champ de tri | `DmdCrDt` (création), `DmdUpDt` (MAJ) |
-| `orderWay` | Sens du tri | ` DESC` ou ` ASC` |
+## Cache local
+
+La CLI maintient un cache local dans `.sesam_cache.json` (partagé avec l'interface web) :
+
+| Type de données | Durée de conservation |
+|---|---|
+| Tickets **clos** (détail + messages) | **Permanent** — jamais expiré |
+| Tickets **ouverts** (détail) | 15 minutes |
+| Messages d'un ticket ouvert | 5 minutes |
+| Liste globale de tickets | 5 minutes |
+
+**Avantages :**
+- Zéro requête API pour les tickets clos — source d'information statique pour les agents
+- Protège contre le rate limiting du portail (max ~30 requêtes/page)
+- `sesam sync` → cache permanent peuplé → `sesam-ui` sert les données immédiatement
+
+**Forcer un rafraîchissement :** ajoutez `--refresh` à n'importe quelle commande.
+
+---
+
+## Mode JSON pour les scripts
+
+Toutes les commandes acceptent `--json-output` pour une sortie machine-readable :
+
+```bash
+sesam list --json-output
+sesam show 26-083-026025 --json-output
+sesam messages 26-083-026025 --json-output
+sesam status --json-output
+sesam sync --json-output
+sesam reply 26-083-026025 \
+  --title "Suivi" --message "…" \
+  --json-output
+```
+
+- **stdout** : uniquement du JSON (pas de logo, pas de décorations)
+- **stderr** : logs et warnings (ignorer pour le parsing)
+- **Code de sortie** : `0` succès, `1` erreur API/auth, `2` mauvaise utilisation
+- **Erreur JSON** : `{"ok": false, "error": "..."}`
+- **Auth expirée** : `{"ok": false, "action": "run_login"}` → lancer `sesam login`
+
+Voir [AGENT_USAGE.md](AGENT_USAGE.md) pour le contrat complet.
 
 ---
 
 ## Dépannage
 
 | Symptôme | Solution |
-|----------|----------|
-| `401 Identifiants incorrects` | Vérifier `SESAM_USERNAME` (email complet) et `SESAM_PASSWORD` dans `.env` |
-| `Service : —` dans `show` | Mettre à jour `portal.py` (résolution via cache `/api/requests/services`) |
-| Messages en HTML brut | Mettre à jour `portal.py` (parser HTML intégré) |
-| Session expirée | Supprimer `.sesam_state.json` pour forcer une reconnexion |
-| `ModuleNotFoundError` | Activer le venv : `source .venv/bin/activate` |
-
----
-
-## Développement
-
-```bash
-# Export JSON pour inspecter les données brutes
-python main.py list --json-output | python3 -m json.tool | head -100
-python main.py show 26-001-000001 --json-output
-
-# Tester la synchro sans rien créer
-python main.py sync --dry-run
-
-# Réinitialiser l'état de synchro
-rm .sesam_state.json
-```
+|---|---|
+| `sesam: command not found` | Ajouter `~/.local/bin` au `$PATH` (voir sortie de `./install.sh`) |
+| `401 Identifiants incorrects` | `sesam login` pour mettre à jour le mot de passe |
+| Session expirée | `sesam logout` puis relancer (re-auth automatique) |
+| Données obsolètes | Ajouter `--refresh` à la commande |
+| Cache corrompu | Supprimer `.sesam_cache.json` dans le dossier d'installation |

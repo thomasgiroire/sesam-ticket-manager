@@ -12,10 +12,9 @@ sesam --help          # doit lister les sous-commandes
 sesam status --json-output
 ```
 
-Une commande complémentaire `sesam-ui` lance l'interface web (équivalent
-de `./start.sh`). Elle n'est pas destinée à l'agent — c'est un raccourci
-utilisateur — mais l'agent peut la suggérer si l'utilisateur préfère
-naviguer dans l'UI.
+Une commande complémentaire `sesam-ui` lance l'interface web.
+Elle n'est pas destinée à l'agent — c'est un raccourci utilisateur —
+mais l'agent peut la suggérer si l'utilisateur préfère naviguer dans l'UI.
 
 Si la commande n'est pas trouvée, l'utilisateur doit relancer `./install.sh`
 depuis le répertoire d'installation et accepter l'étape « Commande globale ».
@@ -58,7 +57,7 @@ et **ne pas tenter** d'invoquer `sesam login` lui-même.
 
 ## Sous-commandes
 
-### `sesam list [--open-only] [--status <s>] [--type Incident|Demande] [--limit N] [--page N] [--fetch-all] --json-output`
+### `sesam list [--open-only] [--status <s>] [--type Incident|Demande] [--limit N] [--page N] [--fetch-all] [--refresh] --json-output`
 
 Liste les tickets. Sortie : `array<Ticket>`.
 
@@ -153,6 +152,23 @@ Commandes utiles :
 Les références ont la forme `26-083-026025`. Ne réponds JAMAIS sur un
 ticket sans avoir d'abord lu `sesam messages` pour comprendre le contexte.
 ```
+
+## Cache et performance
+
+La CLI maintient un cache local partagé avec l'interface web :
+
+- **Tickets clos** : conservés indéfiniment — zéro requête API, source stable pour l'agent
+- **Tickets ouverts** : rafraîchis toutes les 15 minutes
+- **Liste globale** : rafraîchie toutes les 5 minutes
+
+Pour forcer un appel API fresh, ajouter `--refresh` :
+```bash
+sesam show 26-083-026025 --refresh --json-output
+sesam list --refresh --json-output
+```
+
+`sesam sync --json-output` est recommandé en début de session — il peuple le cache
+complet (tickets clos en permanent) sans surcharger le portail.
 
 ## Limites connues
 

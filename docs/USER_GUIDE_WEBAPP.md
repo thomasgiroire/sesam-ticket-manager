@@ -1,30 +1,15 @@
 # Guide utilisateur — Interface Web SESAM Ticket Manager
 
-## Prérequis
-
-Avant de lancer l'interface web, assurez-vous que :
-
-1. Votre fichier `.env` contient au minimum :
-   ```
-   SESAM_USERNAME=votre@email.fr
-   SESAM_PASSWORD=votre_mot_de_passe
-   ```
-2. Les dépendances Python sont installées :
-   ```bash
-   pip install -r requirements.txt
-   ```
-
----
-
-## Lancement de l'application
+## Lancement
 
 ```bash
-uvicorn web_app:app --reload --port 8473
+sesam-ui
 ```
 
-L'interface est accessible à l'adresse : **http://localhost:8473**
+L'interface s'ouvre automatiquement dans votre navigateur sur **http://localhost:8473**
 
-> Le flag `--reload` active le rechargement automatique lors de modifications du code (pratique en développement). En production, omettez-le.
+> Les identifiants et le port sont configurés lors de `./install.sh`.
+> Si l'app ne s'ouvre pas automatiquement, accédez manuellement à `http://localhost:8473`.
 
 ---
 
@@ -131,7 +116,7 @@ Formulaire de création d'une nouvelle demande de support.
 
 Après soumission réussie, vous êtes redirigé vers la page de détail du nouveau ticket.
 
-> **Note** : le formulaire crée toujours une demande de type `DEMANDE`. Pour les incidents, utilisez la CLI : `python main.py` (création d'incident non exposée dans la web app).
+> **Note** : le formulaire crée toujours une demande de type `DEMANDE`. La création d'incident n'est pas exposée dans l'interface web.
 
 ---
 

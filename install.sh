@@ -368,20 +368,13 @@ ok "Port $CHOSEN_PORT sélectionné"
 echo ""
 echo -e "  ${BOLD}┌──────────────────────────────────────────────────────┐${RESET}"
 echo -e "  ${BOLD}│                                                      │${RESET}"
-echo -e "  ${BOLD}│  Pour lancer l'application web :                     │${RESET}"
+echo -e "  ${BOLD}│  ${GREEN}sesam-ui${RESET}${BOLD}    → interface web dans le navigateur       │${RESET}"
+echo -e "  ${BOLD}│  ${GREEN}sesam list${RESET}${BOLD}  → lister les tickets en terminal          │${RESET}"
 echo -e "  ${BOLD}│                                                      │${RESET}"
-if [[ -n "$UI_BIN_INSTALLED" ]]; then
-echo -e "  ${BOLD}│    ${GREEN}sesam-ui${RESET}${BOLD}        (depuis n'importe où)             │${RESET}"
-echo -e "  ${BOLD}│    ${GREEN}./start.sh${RESET}${BOLD}      (depuis ce dossier)                │${RESET}"
-else
-echo -e "  ${BOLD}│    ${GREEN}./start.sh${RESET}${BOLD}                                       │${RESET}"
-fi
-echo -e "  ${BOLD}│                                                      │${RESET}"
-echo -e "  ${BOLD}│  L'app s'ouvrira automatiquement dans votre          │${RESET}"
-echo -e "  ${BOLD}│  navigateur sur http://localhost:${CHOSEN_PORT}              │${RESET}"
+echo -e "  ${BOLD}│  L'app s'ouvrira sur http://localhost:${CHOSEN_PORT}          │${RESET}"
 echo -e "  ${BOLD}│                                                      │${RESET}"
 echo -e "  ${BOLD}└──────────────────────────────────────────────────────┘${RESET}"
 echo ""
 
 # ─── Aide rapide ──────────────────────────────────────────────────────────────
-"$SCRIPT_DIR/start.sh" --help
+"$SCRIPT_DIR/start.sh" --help --no-update

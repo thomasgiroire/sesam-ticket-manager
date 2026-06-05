@@ -18,7 +18,9 @@ _RELEASE_SHA1="https://github.com/thomasgiroire/sesam-ticket-manager/releases/do
 _RELEASE_ZIP="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest/sesam-ticket-manager.zip"    
 _VERSION_FILE="$RUN_DIR/.version"
 _do_update=true
-for _arg in "$@"; do [[ "$_arg" == "--no-update" ]] && _do_update=false; done
+for _arg in "$@"; do
+  [[ "$_arg" == "--no-update" || "$_arg" == "--help" || "$_arg" == "-h" ]] && _do_update=false
+done
 
 if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
 
@@ -132,53 +134,15 @@ fi
 # ─── Aide ─────────────────────────────────────────────────────────────────────
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
   echo ""
-  echo -e "${BOLD}SESAM Ticket Manager — Aide rapide${RESET}"
+  echo -e "${BOLD}SESAM Ticket Manager${RESET}"
   echo ""
-  echo -e "${BOLD}UTILISATION${RESET}"
-  echo -e "  ${GREEN}./start.sh${RESET}             Démarrer l'application web"
-  echo -e "  ${GREEN}./start.sh --no-update${RESET} Démarrer sans vérifier les mises à jour"
-  echo -e "  ${GREEN}./start.sh --help${RESET}      Afficher cette aide"
+  echo -e "  ${GREEN}sesam-ui${RESET}       Ouvrir l'interface web dans le navigateur"
+  echo -e "  ${GREEN}sesam list${RESET}     Lister les tickets depuis le terminal"
+  echo ""
+  echo -e "  ${CYAN}sesam --help${RESET}   Toutes les commandes disponibles"
   echo ""
   echo -e "${BOLD}PREMIER DÉMARRAGE${RESET}"
-  echo -e "  Si l'application n'est pas encore installée, lancez d'abord :"
-  echo -e "  ${CYAN}./install.sh${RESET}"
-  echo ""
-  echo -e "${BOLD}FONCTIONNEMENT${RESET}"
-  echo -e "  • L'application s'ouvre automatiquement dans votre navigateur"
-  echo -e "  • Utilisez ${BOLD}Ctrl+C${RESET} pour arrêter le serveur"
-  echo -e "  • Le port est configurable dans ${CYAN}run/.env${RESET} (variable PORT)"
-  echo ""
-  echo -e "${BOLD}CLI — EXEMPLES D'USAGE${RESET}"
-  echo -e "  La CLI s'utilise via le virtualenv de l'environnement d'exécution :"
-  echo -e "  ${CYAN}source run/.venv/bin/activate${RESET}"
-  echo ""
-  echo -e "  ${BOLD}Consulter les tickets${RESET}"
-  echo -e "  ${GREEN}python main.py list${RESET}                         Lister tous les tickets"
-  echo -e "  ${GREEN}python main.py list --open-only${RESET}              Uniquement les tickets ouverts"
-  echo -e "  ${GREEN}python main.py list --status \"En cours\"${RESET}      Filtrer par statut"
-  echo -e "  ${GREEN}python main.py list --type Incident${RESET}          Filtrer par type"
-  echo ""
-  echo -e "  ${BOLD}Détail et messages${RESET}"
-  echo -e "  ${GREEN}python main.py show 26-083-026025${RESET}            Détail d'un ticket"
-  echo -e "  ${GREEN}python main.py messages 26-083-026025${RESET}        Historique des messages"
-  echo -e "  ${GREEN}python main.py show 26-083-026025 --json-output${RESET}  Export JSON brut"
-  echo ""
-  echo -e "  ${BOLD}Répondre et exporter${RESET}"
-  echo -e "  ${GREEN}python main.py reply 26-083-026025${RESET}           Répondre à un ticket (interactif)"
-  echo -e "  ${GREEN}python main.py export 26-083-026025${RESET}          Exporter en Markdown"
-  echo -e "  ${GREEN}python main.py export 26-083-026025 --format json${RESET}  Exporter en JSON"
-  echo ""
-  echo -e "  ${BOLD}Synchronisation et état${RESET}"
-  echo -e "  ${GREEN}python main.py sync${RESET}                          Détecter les nouveaux tickets"
-  echo -e "  ${GREEN}python main.py sync --all${RESET}                    Traiter tous les tickets"
-  echo -e "  ${GREEN}python main.py sync --dry-run${RESET}                Simuler sans modifier l'état"
-  echo -e "  ${GREEN}python main.py status${RESET}                        Vérifier la connexion"
-  echo ""
-  echo -e "  ${YELLOW}Note :${RESET} la référence ticket est au format XX-YYY-NNNNNN (ex: 26-083-026025)"
-  echo ""
-  echo -e "${BOLD}DOCUMENTATION${RESET}"
-  echo -e "  ${CYAN}docs/USER_GUIDE_WEBAPP.md${RESET}     Guide d'utilisation de l'interface web"
-  echo -e "  ${CYAN}docs/CLI_USER_GUIDE.md${RESET}        Guide CLI (commandes, options, exemples)"
+  echo -e "  Si les commandes ne sont pas encore installées : ${CYAN}./install.sh${RESET}"
   echo ""
   exit 0
 fi
