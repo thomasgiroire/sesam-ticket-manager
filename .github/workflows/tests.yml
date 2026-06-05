@@ -53,6 +53,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Bump patch version
+      id: bump
+      run: |
+        VERSION=$(cat VERSION | tr -d '[:space:]')
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+        NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+        echo "$NEW_VERSION" > VERSION
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add VERSION
+        git commit -m "chore: bump version $VERSION → $NEW_VERSION [skip ci]"
+        git push
 
     - name: Build release zip
       run: bash package.sh --release
@@ -61,7 +77,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: latest
-        name: "Latest"
+        name: "v${{ steps.bump.outputs.new_version }}"
         prerelease: false
         files: |
           sesam-ticket-manager.zip
