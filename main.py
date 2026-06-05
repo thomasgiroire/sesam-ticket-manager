@@ -113,9 +113,17 @@ _MSG_LABEL = {
     "exextranet": "Message GIE SESAM-Vitale",
 }
 
+_MSG_LABEL_BY_API_LABEL = {
+    "extranet sortant": "Réponse du GIE",
+    "extranet entrant": "Message éditeur",
+}
+
 def _msg_label(msg) -> str:
     """Retourne le label lisible d'un message selon son type_code."""
-    return _MSG_LABEL.get(msg.type_code.lower(), msg.type_label or msg.type_code)
+    by_code = _MSG_LABEL.get(msg.type_code.lower())
+    if by_code:
+        return by_code
+    return _MSG_LABEL_BY_API_LABEL.get((msg.type_label or "").lower(), msg.type_label or msg.type_code)
 
 def _msg_is_inbound(msg) -> bool:
     """Vrai si le message est envoyé par l'éditeur (entrant pour le GIE)."""
