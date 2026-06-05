@@ -33,12 +33,12 @@ sesam list        # CLI — lister les tickets depuis le terminal
 ### Désinstallation
 
 ```bash
-curl -fsSL https://github.com/thomasgiroire/sesam-ticket-manager/releases/latest/download/setup.sh | bash -s -- --uninstall
+curl -fsSL https://github.com/thomasgiroire/sesam-ticket-manager/releases/latest/download/uninstall.sh | bash
 ```
 
 Supprime les commandes globales (`sesam`, `sesam-ui`), le virtualenv (`run/`), et le fichier de localisation (`~/.sesam/home`). Le code source est conservé.
 
-> Pour supprimer sans confirmation : ajouter `--force` après `--uninstall`.
+> Pour supprimer sans confirmation : `curl -fsSL ... | bash -s -- --force`
 
 ---
 
