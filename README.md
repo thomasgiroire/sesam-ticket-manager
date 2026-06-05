@@ -11,24 +11,17 @@
 ### Installation
 
 ```bash
-# Télécharger la dernière version
-curl -L -o sesam-ticket-manager.zip \
-  https://github.com/thomasgiroire/sesam-ticket-manager/releases/latest/download/sesam-ticket-manager.zip
-
-# Extraire et accéder au dossier
-unzip -d sesam-ticket-manager sesam-ticket-manager.zip
-cd sesam-ticket-manager
-
-# Lancer l'installation guidée
-chmod +x install.sh && ./install.sh
+curl -fsSL https://github.com/thomasgiroire/sesam-ticket-manager/releases/latest/download/setup.sh | bash
 ```
 
-L'installation :
-- Vérifie/installe Homebrew et Python 3.11+
-- Crée un environnement Python dans `run/.venv`
+C'est tout. Le script télécharge la release, extrait les fichiers dans `~/Applications/sesam-ticket-manager` et lance l'installation guidée qui :
+- Vérifie Python 3.11+
+- Crée un environnement Python isolé dans `run/.venv`
 - Vous demande vos identifiants SESAM
 - Configure le port web
 - **Installe deux commandes globales** : `sesam` (CLI) et `sesam-ui` (interface web)
+
+> **Répertoire personnalisé :** `SESAM_INSTALL_DIR=~/mon-dossier bash <(curl -fsSL ...)`
 
 ### Démarrer
 
