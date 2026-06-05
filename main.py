@@ -190,6 +190,11 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
     """
     portal = PortalClient()
 
+    is_first_run = not portal.state.known_tickets
+    if is_first_run:
+        fetch_all = True
+        console.print("[dim]Première exécution détectée — récupération de tous les tickets.[/dim]")
+
     with console.status("Récupération des tickets..."):
         try:
             tickets = portal.list_tickets(
@@ -204,6 +209,9 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
         except APIError as e:
             console.print(f"[red]❌ Erreur API :[/red] {e}")
             sys.exit(1)
+
+    if is_first_run:
+        portal.state.update_known_tickets(tickets)
 
     # Filtres locaux
     if status:
