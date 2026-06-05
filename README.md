@@ -98,14 +98,15 @@ Le tool est conçu pour être appelable par un agent type Claude depuis le
 poste de travail. La commande `sesam` est globale, non-interactive en
 mode `--json-output`, et chaque sortie est un objet JSON stable.
 
-**Pour créer un skill Claude Code (ou tout autre agent) :**
+**Pour installer le skill Claude Code :**
 
 ```bash
-sesam skill-creator > /tmp/sesam-agent-usage.md
+mkdir -p ~/.claude/skills/sesam
+sesam skill-creator > ~/.claude/skills/sesam/SKILL.md
 ```
 
-Cela génère le guide complet d'utilisation : contrat JSON, schémas des
-commandes, stratégie d'accès aux données, snippet `CLAUDE.md` prêt à coller.
+Claude invoque alors `sesam` automatiquement quand vous mentionnez un ticket GIE,
+le Portail IRIS, ou posez une question du type "qu'est-ce que le GIE a répondu sur X".
 
 Exemple minimal de configuration dans un `CLAUDE.md` (ou prompt système) :
 

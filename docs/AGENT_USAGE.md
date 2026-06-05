@@ -133,6 +133,29 @@ Vérifie l'authentification et compte les tickets ouverts par statut.
 Export d'un ticket complet, optimisé pour ingestion par un autre agent
 (format Markdown structuré par défaut).
 
+## Installer le skill Claude Code
+
+Pour utiliser `sesam` comme skill natif dans Claude Code (invocation automatique
+quand vous mentionnez un ticket GIE) :
+
+```bash
+# 1. Générer le guide d'usage
+sesam skill-creator > /tmp/sesam-agent-usage.md
+
+# 2. Créer le dossier skill
+mkdir -p ~/.claude/skills/sesam
+
+# 3. Générer le SKILL.md à partir du guide
+# (coller le contenu dans ~/.claude/skills/sesam/SKILL.md
+#  ou demander à Claude de créer le skill depuis ce guide)
+```
+
+Le skill est ensuite invoqué automatiquement par Claude quand vous mentionnez
+"ticket GIE", "Portail IRIS", ou posez une question du type
+"qu'est-ce que le GIE a répondu sur X".
+
+---
+
 ## Exemple de bloc à coller dans un `CLAUDE.md`
 
 ```markdown
