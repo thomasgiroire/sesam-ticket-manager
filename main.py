@@ -48,6 +48,13 @@ from exceptions import AuthError, APIError, ConfigError
 from utils import setup_logging, get_logger, format_ticket_export
 
 
+def _read_version() -> str:
+    try:
+        return (Path(__file__).parent / "VERSION").read_text(encoding="utf-8").strip()
+    except Exception:
+        return "unknown"
+
+
 def _emit_error_json(exc: Exception) -> None:
     """Imprime une erreur structurée sur stdout pour les agents.
 
@@ -152,6 +159,7 @@ def _resolve_id(portal: PortalClient, code_or_id: str) -> str:
 # ─── Groupe CLI ──────────────────────────────────────────────────────────────
 
 @click.group()
+@click.version_option(version=_read_version(), prog_name="sesam")
 @click.option("--verbose", "-v", is_flag=True, help="Activer le mode debug (logging détaillé)")
 def cli(verbose):
     """Portail IRIS SESAM-Vitale"""

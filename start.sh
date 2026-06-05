@@ -14,9 +14,12 @@ else
 fi
 
 # ─── Mise à jour automatique ──────────────────────────────────────────────────
-_RELEASE_SHA1="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest/sesam-ticket-manager.sha1"
-_RELEASE_ZIP="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest/sesam-ticket-manager.zip"    
+_RELEASE_BASE="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest"
+_RELEASE_SHA1="$_RELEASE_BASE/sesam-ticket-manager.sha1"
+_RELEASE_ZIP="$_RELEASE_BASE/sesam-ticket-manager.zip"
+_RELEASE_VERSION="$_RELEASE_BASE/VERSION"
 _VERSION_FILE="$RUN_DIR/.version"
+_LOCAL_VERSION_FILE="$SCRIPT_DIR/VERSION"
 _do_update=true
 for _arg in "$@"; do
   [[ "$_arg" == "--no-update" || "$_arg" == "--help" || "$_arg" == "-h" ]] && _do_update=false
@@ -34,22 +37,26 @@ if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
     _LOCAL_SHA=""
     [[ -f "$_VERSION_FILE" ]] && _LOCAL_SHA=$(cat "$_VERSION_FILE" | tr -d '[:space:]')
 
+    _LOCAL_VER="?"
+    [[ -f "$_LOCAL_VERSION_FILE" ]] && _LOCAL_VER=$(tr -d '[:space:]' < "$_LOCAL_VERSION_FILE")
+
     if [[ "$_LOCAL_SHA" == "$_REMOTE_SHA" ]]; then
-      echo -e "${GREEN}✓ Application à jour.${RESET}"
+      echo -e "${GREEN}✓ v${_LOCAL_VER} — à jour.${RESET}"
     else
-      echo -e "${GREEN}→ Nouvelle version détectée. Mise à jour en cours...${RESET}"
+      _REMOTE_VER=$(curl -sL --max-time 5 "$_RELEASE_VERSION" 2>/dev/null | tr -d '[:space:]' || echo "?")
+      echo -e "${GREEN}→ Mise à jour v${_LOCAL_VER} → v${_REMOTE_VER}...${RESET}"
       _TMP_DIR=$(mktemp -d)
       if curl -sL --max-time 60 "$_RELEASE_ZIP" \
               -o "$_TMP_DIR/update.zip" \
           && unzip -q "$_TMP_DIR/update.zip" -d "$_TMP_DIR/extracted"; then
 
-        # Snapshot requirements.txt avant remplacement
         _REQ_BEFORE=$(md5 -q "$SCRIPT_DIR/requirements.txt" 2>/dev/null \
                       || md5sum "$SCRIPT_DIR/requirements.txt" 2>/dev/null | awk '{print $1}')
 
-        # Copier les fichiers applicatifs (pas run/, install.sh, docs/)
         cp "$_TMP_DIR/extracted"/*.py            "$SCRIPT_DIR/"
         cp "$_TMP_DIR/extracted/requirements.txt" "$SCRIPT_DIR/"
+        [[ -f "$_TMP_DIR/extracted/VERSION" ]] && \
+          cp "$_TMP_DIR/extracted/VERSION" "$SCRIPT_DIR/"
         cp -r "$_TMP_DIR/extracted/templates"    "$SCRIPT_DIR/"
         cp -r "$_TMP_DIR/extracted/static"       "$SCRIPT_DIR/"
         if [[ -d "$_TMP_DIR/extracted/bin" ]]; then
@@ -58,15 +65,11 @@ if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
           chmod +x "$SCRIPT_DIR/bin/"* 2>/dev/null || true
         fi
 
-        # Mise à jour de start.sh — avec validation syntaxique pour
-        # éviter de remplacer par un script cassé. L'ancien est conservé
-        # en start.sh.bak en cas de rollback manuel nécessaire.
         if [[ -f "$_TMP_DIR/extracted/start.sh" ]]; then
           if bash -n "$_TMP_DIR/extracted/start.sh" 2>/dev/null; then
             cp "$SCRIPT_DIR/start.sh" "$SCRIPT_DIR/start.sh.bak" 2>/dev/null || true
             cp "$_TMP_DIR/extracted/start.sh" "$SCRIPT_DIR/start.sh"
             chmod +x "$SCRIPT_DIR/start.sh" 2>/dev/null || true
-            echo -e "${CYAN}→ start.sh mis à jour (ancien sauvegardé en start.sh.bak)${RESET}"
           else
             echo -e "${YELLOW}⚠ Nouveau start.sh invalide — conservation de la version actuelle.${RESET}"
           fi
@@ -75,16 +78,15 @@ if [[ "$_do_update" == true ]] && command -v curl &>/dev/null; then
         _REQ_AFTER=$(md5 -q "$SCRIPT_DIR/requirements.txt" 2>/dev/null \
                      || md5sum "$SCRIPT_DIR/requirements.txt" 2>/dev/null | awk '{print $1}')
 
-        # Réinstaller les dépendances si requirements.txt a changé
         if [[ "$_REQ_BEFORE" != "$_REQ_AFTER" && -d "$RUN_DIR/.venv" ]]; then
           echo -e "${CYAN}→ Nouvelles dépendances. Installation...${RESET}"
           "$RUN_DIR/.venv/bin/pip" install -r "$SCRIPT_DIR/requirements.txt" --quiet
         fi
 
         echo "$_REMOTE_SHA" > "$_VERSION_FILE"
-        echo -e "${GREEN}✓ Application mise à jour.${RESET}"
+        echo -e "${GREEN}✓ v${_REMOTE_VER} installée.${RESET}"
       else
-        echo -e "${YELLOW}⚠ Téléchargement échoué. Démarrage avec la version actuelle.${RESET}"
+        echo -e "${YELLOW}⚠ Téléchargement échoué. Démarrage avec v${_LOCAL_VER}.${RESET}"
       fi
 
       rm -rf "$_TMP_DIR"

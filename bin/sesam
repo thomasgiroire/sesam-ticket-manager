@@ -51,9 +51,12 @@ fi
 
 # ─── Auto-update (une fois par jour, ou forcé avec --update) ─────────────────
 
-_RELEASE_SHA1="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest/sesam-ticket-manager.sha1"
-_RELEASE_ZIP="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest/sesam-ticket-manager.zip"
+_RELEASE_BASE="https://github.com/thomasgiroire/sesam-ticket-manager/releases/download/latest"
+_RELEASE_SHA1="$_RELEASE_BASE/sesam-ticket-manager.sha1"
+_RELEASE_ZIP="$_RELEASE_BASE/sesam-ticket-manager.zip"
+_RELEASE_VERSION="$_RELEASE_BASE/VERSION"
 _VERSION_FILE="$SESAM_HOME_RESOLVED/run/.version"
+_LOCAL_VERSION_FILE="$SESAM_HOME_RESOLVED/VERSION"
 _LAST_CHECK_FILE="$SESAM_HOME_RESOLVED/run/.last_update_check"
 _CHECK_INTERVAL=86400  # 24 heures
 
@@ -89,8 +92,14 @@ if [[ "$_should_check" == true ]] && command -v curl &>/dev/null; then
     _LOCAL_SHA=""
     [[ -f "$_VERSION_FILE" ]] && _LOCAL_SHA=$(tr -d '[:space:]' < "$_VERSION_FILE")
 
+    _LOCAL_VER="?"
+    [[ -f "$_LOCAL_VERSION_FILE" ]] && _LOCAL_VER=$(tr -d '[:space:]' < "$_LOCAL_VERSION_FILE")
+
     if [[ "$_LOCAL_SHA" != "$_REMOTE_SHA" ]]; then
-      echo "→ Mise à jour disponible, installation..." >&2
+      # Récupérer la version distante pour l'afficher dans le message
+      _REMOTE_VER=$(curl -sL --max-time 5 "$_RELEASE_VERSION" 2>/dev/null | tr -d '[:space:]' || echo "?")
+      echo "→ Mise à jour v${_LOCAL_VER} → v${_REMOTE_VER}..." >&2
+
       _TMP_DIR=$(mktemp -d)
 
       if curl -sL --max-time 60 "$_RELEASE_ZIP" \
@@ -102,6 +111,8 @@ if [[ "$_should_check" == true ]] && command -v curl &>/dev/null; then
 
         cp "$_TMP_DIR/extracted"/*.py            "$SESAM_HOME_RESOLVED/"
         cp "$_TMP_DIR/extracted/requirements.txt" "$SESAM_HOME_RESOLVED/"
+        [[ -f "$_TMP_DIR/extracted/VERSION" ]] && \
+          cp "$_TMP_DIR/extracted/VERSION" "$SESAM_HOME_RESOLVED/"
         cp -r "$_TMP_DIR/extracted/templates"    "$SESAM_HOME_RESOLVED/" 2>/dev/null || true
         cp -r "$_TMP_DIR/extracted/static"       "$SESAM_HOME_RESOLVED/" 2>/dev/null || true
         if [[ -d "$_TMP_DIR/extracted/bin" ]]; then
@@ -123,9 +134,9 @@ if [[ "$_should_check" == true ]] && command -v curl &>/dev/null; then
         fi
 
         echo "$_REMOTE_SHA" > "$_VERSION_FILE"
-        echo "✓ Application mise à jour." >&2
+        echo "✓ v${_REMOTE_VER} installée." >&2
       else
-        echo "⚠ Mise à jour échouée, poursuite avec la version actuelle." >&2
+        echo "⚠ Mise à jour échouée, poursuite avec v${_LOCAL_VER}." >&2
       fi
 
       rm -rf "$_TMP_DIR"
