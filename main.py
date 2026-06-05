@@ -178,7 +178,16 @@ def cli(verbose):
 @click.option("--fetch-all", "fetch_all", is_flag=True, help="Récupérer toutes les pages")
 @click.option("--json-output", "json_out", is_flag=True, help="Sortie JSON brut")
 def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
-    """📋 Lister les tickets du Portail IRIS (clos inclus par défaut)."""
+    """Lister les tickets du Portail IRIS.
+
+    \b
+    Exemples :
+      sesam list
+      sesam list --open-only
+      sesam list --status "En attente"
+      sesam list --type Incident --page 2
+      sesam list --fetch-all --json-output
+    """
     portal = PortalClient()
 
     with console.status("Récupération des tickets..."):
@@ -258,7 +267,14 @@ def list(open_only, status, ticket_type, limit, page, fetch_all, json_out):
 @click.argument("code_or_id")
 @click.option("--json-output", "json_out", is_flag=True)
 def show(code_or_id, json_out):
-    """🔍 Afficher le détail d'un ticket (par référence ou ID)."""
+    """Afficher le détail d'un ticket.
+
+    \b
+    Exemples :
+      sesam show 26-083-026025
+      sesam show 26-083-026025 --refresh
+      sesam show 26-083-026025 --json-output
+    """
     portal = PortalClient()
     ticket_id = _resolve_id(portal, code_or_id)
 
@@ -315,7 +331,14 @@ def show(code_or_id, json_out):
 @click.option("--limit", "-n", default=20, show_default=True)
 @click.option("--json-output", "json_out", is_flag=True)
 def messages(code_or_id, limit, json_out):
-    """💬 Afficher tous les messages d'un ticket."""
+    """Afficher les messages d'un ticket.
+
+    \b
+    Exemples :
+      sesam messages 26-083-026025
+      sesam messages 26-083-026025 --limit 50
+      sesam messages 26-083-026025 --json-output
+    """
     portal = PortalClient()
     ticket_id = _resolve_id(portal, code_or_id)
 
@@ -354,7 +377,15 @@ def messages(code_or_id, limit, json_out):
 @click.option("--yes", "-y", "assume_yes", is_flag=True, help="Ne pas demander confirmation (mode non-interactif)")
 @click.option("--json-output", "json_out", is_flag=True, help="Sortie JSON brut (implique --yes)")
 def reply(code_or_id, title, message, assume_yes, json_out):
-    """✏️  Ajouter un message à un ticket."""
+    """Répondre à un ticket (ajouter un message).
+
+    \b
+    Exemples :
+      sesam reply 26-083-026025
+      sesam reply 26-083-026025 --title "Suivi" --message "Bonjour..."
+      sesam reply 26-083-026025 --title "Suivi" --message "..." --yes
+      sesam reply 26-083-026025 --title "Suivi" --message "..." --json-output
+    """
     non_interactive = assume_yes or json_out
 
     if not title:
@@ -407,7 +438,13 @@ def reply(code_or_id, title, message, assume_yes, json_out):
 @click.argument("code_or_id")
 @click.option("--format", "fmt", type=click.Choice(["markdown", "json"]), default="markdown", show_default=True, help="Format de sortie")
 def export(code_or_id, fmt):
-    """📤 Exporter un ticket en format structuré (prêt pour un agent DUST)."""
+    """Exporter un ticket en format structuré.
+
+    \b
+    Exemples :
+      sesam export 26-083-026025
+      sesam export 26-083-026025 --format json
+    """
     portal = PortalClient()
     ticket_id = _resolve_id(portal, code_or_id)
 
@@ -429,7 +466,15 @@ def export(code_or_id, fmt):
 @click.option("--dry-run",  is_flag=True, help="Simuler sans rien marquer")
 @click.option("--json-output", "json_out", is_flag=True, help="Sortie JSON brut")
 def sync(sync_all, closed, dry_run, json_out):
-    """🔄 Détecter les nouveaux tickets et mettre à jour l'état local."""
+    """Synchroniser les tickets avec le portail.
+
+    \b
+    Exemples :
+      sesam sync
+      sesam sync --all
+      sesam sync --dry-run
+      sesam sync --json-output
+    """
     portal = PortalClient()
 
     if dry_run and not json_out:
@@ -504,7 +549,13 @@ def sync(sync_all, closed, dry_run, json_out):
 @cli.command()
 @click.option("--json-output", "json_out", is_flag=True, help="Sortie JSON brut")
 def status(json_out):
-    """🔗 Vérifier la connexion et l'état du compte."""
+    """Vérifier la connexion et l'état du compte.
+
+    \b
+    Exemples :
+      sesam status
+      sesam status --json-output
+    """
     portal = PortalClient()
 
     try:
@@ -610,7 +661,12 @@ def _write_env_var(env_path: Path, key: str, value: str) -> None:
 
 @cli.command()
 def login():
-    """🔐 Configurer ou mettre à jour les identifiants Portail IRIS."""
+    """Configurer ou mettre à jour les identifiants Portail IRIS.
+
+    \b
+    Exemple :
+      sesam login
+    """
     env_path = _resolve_env_path()
 
     if not env_path.parent.exists():
@@ -675,7 +731,12 @@ def login():
 
 @cli.command()
 def logout():
-    """🚪 Déconnecter (supprime les cookies de session, conserve les identifiants)."""
+    """Déconnecter (supprime la session, conserve les identifiants).
+
+    \b
+    Exemple :
+      sesam logout
+    """
     state_path = _resolve_state_path()
 
     if not state_path.exists():
