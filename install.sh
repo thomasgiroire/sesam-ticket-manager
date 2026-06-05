@@ -78,7 +78,7 @@ echo -e "  Les fichiers d'exécution seront créés dans : ${CYAN}run/${RESET}"
 echo -e "  Durée estimée : ${BOLD}2–5 minutes${RESET}"
 
 # ─── Étape 1 : Homebrew ───────────────────────────────────────────────────────
-step "[1/7] Homebrew"
+step "[1/6] Homebrew"
 
 if command -v brew &>/dev/null; then
   ok "Homebrew déjà installé ($(brew --version 2>/dev/null | head -1))"
@@ -99,7 +99,7 @@ else
 fi
 
 # ─── Étape 2 : Python 3.11+ ───────────────────────────────────────────────────
-step "[2/7] Python 3.11+"
+step "[2/6] Python 3.11+"
 
 PYTHON_CMD=""
 for cmd in python3.13 python3.12 python3.11; do
@@ -133,7 +133,7 @@ else
 fi
 
 # ─── Étape 3 : Dossier run/ + Virtualenv + dépendances ────────────────────────
-step "[3/7] Environnement Python (run/)"
+step "[3/6] Environnement Python (run/)"
 
 mkdir -p "$RUN_DIR"
 ok "Dossier run/ prêt."
@@ -152,7 +152,7 @@ info "Installation des dépendances (peut prendre 1–2 min)..."
 ok "Dépendances installées."
 
 # ─── Étape 4 : Port web ───────────────────────────────────────────────────────
-step "[4/7] Port web"
+step "[4/6] Port web"
 
 DEFAULT_PORT=8473
 CHOSEN_PORT=$DEFAULT_PORT
@@ -189,75 +189,23 @@ fi
 ok "Port $CHOSEN_PORT sélectionné."
 
 # ─── Étape 5 : Configuration run/.env ─────────────────────────────────────────
-step "[5/7] Configuration"
+step "[5/6] Configuration"
 
-CONFIGURE_ENV=true
 if [[ -f "$RUN_DIR/.env" ]]; then
-  warn "Un fichier run/.env existe déjà."
-  echo ""
-  if ask_yn "Le reconfigurer ?" "N"; then
-    CONFIGURE_ENV=true
+  ok "Configuration existante conservée."
+  # Mettre à jour le PORT si nécessaire
+  if grep -q "^PORT=" "$RUN_DIR/.env" 2>/dev/null; then
+    sed -i '' "s/^PORT=.*/PORT=$CHOSEN_PORT/" "$RUN_DIR/.env"
   else
-    CONFIGURE_ENV=false
-    ok "Configuration existante conservée."
-    if grep -q "^PORT=" "$RUN_DIR/.env" 2>/dev/null; then
-      sed -i '' "s/^PORT=.*/PORT=$CHOSEN_PORT/" "$RUN_DIR/.env"
-    else
-      echo "" >> "$RUN_DIR/.env"
-      write_env_var "PORT" "$CHOSEN_PORT" >> "$RUN_DIR/.env"
-    fi
+    echo "" >> "$RUN_DIR/.env"
+    echo "PORT=$CHOSEN_PORT" >> "$RUN_DIR/.env"
   fi
-fi
-
-if [[ "$CONFIGURE_ENV" == true ]]; then
-
-  echo ""
-  echo -e "  ${BOLD}── Portail SESAM-Vitale ────────────────────────────────${RESET}"
-  echo -e "  ${CYAN}URL :${RESET} https://portail-support.sesam-vitale.fr"
-  echo ""
-
-  while true; do
-    SESAM_USERNAME=""
-    SESAM_PASSWORD=""
-
-    while [[ -z "$SESAM_USERNAME" ]]; do
-      SESAM_USERNAME=$(ask "Identifiant (login)")
-      [[ -z "$SESAM_USERNAME" ]] && warn "L'identifiant ne peut pas être vide."
-    done
-
-    while [[ -z "$SESAM_PASSWORD" ]]; do
-      read_secret SESAM_PASSWORD "Mot de passe"
-      [[ -z "$SESAM_PASSWORD" ]] && warn "Le mot de passe ne peut pas être vide."
-    done
-
-    info "Vérification des identifiants..."
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-      -X POST "https://portail-support.sesam-vitale.fr/gsvextranet/api/authenticate" \
-      -H "Content-Type: application/json" \
-      -H "Accept: application/json" \
-      --max-time 15 \
-      -d "{\"username\":\"${SESAM_USERNAME}\",\"password\":\"${SESAM_PASSWORD}\",\"rememberMe\":true}" \
-      2>/dev/null)
-
-    if [[ "$HTTP_CODE" == "200" ]]; then
-      ok "Connexion réussie."
-      break
-    elif [[ "$HTTP_CODE" == "401" ]]; then
-      warn "Identifiants incorrects. Veuillez réessayer."
-    elif [[ -z "$HTTP_CODE" || "$HTTP_CODE" == "000" ]]; then
-      warn "Impossible de joindre le portail. Vérifiez votre connexion internet."
-    else
-      warn "Erreur inattendue (HTTP $HTTP_CODE). Veuillez réessayer."
-    fi
-  done
-
+else
   {
     echo "# ─────────────────────────────────────────────"
     echo "# Portail SESAM-Vitale"
     echo "# ─────────────────────────────────────────────"
     write_env_var "SESAM_URL" "https://portail-support.sesam-vitale.fr/gsvextranet/#/all-requests"
-    write_env_var "SESAM_USERNAME" "$SESAM_USERNAME"
-    write_env_var "SESAM_PASSWORD" "$SESAM_PASSWORD"
     echo "SESAM_HEADLESS=true"
     echo ""
     echo "# ─────────────────────────────────────────────"
@@ -270,12 +218,11 @@ if [[ "$CONFIGURE_ENV" == true ]]; then
     echo "# ─────────────────────────────────────────────"
     echo "PORT=$CHOSEN_PORT"
   } > "$RUN_DIR/.env"
-
   ok "run/.env créé."
 fi
 
 # ─── Étape 6 : Commandes globales 'sesam' et 'sesam-ui' ───────────────────────
-step "[6/7] Commandes globales 'sesam' et 'sesam-ui'"
+step "[6/6] Commandes globales 'sesam' et 'sesam-ui'"
 
 SESAM_WRAPPER="$SCRIPT_DIR/bin/sesam"
 UI_WRAPPER="$SCRIPT_DIR/bin/sesam-ui"
@@ -356,25 +303,24 @@ else
   fi
 fi
 
-# ─── Étape 7 : Résumé ─────────────────────────────────────────────────────────
-step "[7/7] Prêt !"
+# ─── Résumé ───────────────────────────────────────────────────────────────────
+step "Installation terminée !"
 echo ""
-ok "Python installé"
-ok "Dépendances installées (run/.venv)"
-ok "run/.env configuré"
+ok "Environnement Python configuré (run/.venv)"
 ok "Port $CHOSEN_PORT sélectionné"
 [[ -n "$SESAM_BIN_INSTALLED" ]] && ok "Commande CLI    : $SESAM_BIN_INSTALLED"
 [[ -n "$UI_BIN_INSTALLED" ]]    && ok "Commande Web UI : $UI_BIN_INSTALLED"
 echo ""
 echo -e "  ${BOLD}┌──────────────────────────────────────────────────────┐${RESET}"
 echo -e "  ${BOLD}│                                                      │${RESET}"
-echo -e "  ${BOLD}│  ${GREEN}sesam-ui${RESET}${BOLD}    → interface web dans le navigateur       │${RESET}"
-echo -e "  ${BOLD}│  ${GREEN}sesam list${RESET}${BOLD}  → lister les tickets en terminal          │${RESET}"
+echo -e "  ${BOLD}│  ${YELLOW}Connectez-vous avant de démarrer :${RESET}${BOLD}                │${RESET}"
 echo -e "  ${BOLD}│                                                      │${RESET}"
-echo -e "  ${BOLD}│  L'app s'ouvrira sur http://localhost:${CHOSEN_PORT}          │${RESET}"
+echo -e "  ${BOLD}│    ${GREEN}sesam login${RESET}${BOLD}                                       │${RESET}"
+echo -e "  ${BOLD}│                                                      │${RESET}"
+echo -e "  ${BOLD}│  Puis lancez l'application :                         │${RESET}"
+echo -e "  ${BOLD}│                                                      │${RESET}"
+echo -e "  ${BOLD}│    ${GREEN}sesam-ui${RESET}${BOLD}   → interface web (port ${CHOSEN_PORT})            │${RESET}"
+echo -e "  ${BOLD}│    ${GREEN}sesam list${RESET}${BOLD} → lister les tickets en terminal        │${RESET}"
 echo -e "  ${BOLD}│                                                      │${RESET}"
 echo -e "  ${BOLD}└──────────────────────────────────────────────────────┘${RESET}"
 echo ""
-
-# ─── Aide rapide ──────────────────────────────────────────────────────────────
-"$SCRIPT_DIR/start.sh" --help --no-update
